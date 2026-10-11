@@ -5,50 +5,18 @@ import sys
 from typing import Any
 
 import pytest
-import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 # Add project root to path for importing app modules
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from app.db.models import Base as DBBase  # noqa: E402
 from app.tools.executor import ToolExecutor  # noqa: E402
-
-
-class _PGUUIDShim(sa.TypeDecorator):
-    impl = sa.CHAR(36)
-    cache_ok = True
-
-    def process_bind_param(self, value: Any, dialect: Any):  # type: ignore[no-untyped-def]
-        return None if value is None else str(value)
-
-    def process_result_value(self, value: Any, dialect: Any):  # type: ignore[no-untyped-def]
-        import uuid
-
-        return None if value is None else uuid.UUID(str(value))
+from tests.conftest import make_sqlite_session_factory  # noqa: E402
 
 
 def _sqlite_session():
-    from sqlalchemy import create_engine, event
-    from sqlalchemy.orm import sessionmaker
-
-    for table in DBBase.metadata.tables.values():
-        for column in list(table.columns):
-            if isinstance(column.type, PGUUID):
-                column.type = _PGUUIDShim()
-    engine = create_engine("sqlite:///:memory:")
-
-    @event.listens_for(engine, "connect")
-    def _enable_fk(dbapi_connection: Any, _record: Any):  # type: ignore[no-untyped-def]
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
-    DBBase.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, expire_on_commit=False)
-    return factory
+    return make_sqlite_session_factory()
 
 
 # ---------------------------------------------------------------------------

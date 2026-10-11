@@ -69,6 +69,15 @@
 - Tests: `test_graph_baseline.py` (8) — customer lookup, order lookup, unknown tool blocked, invalid tool arguments, malformed tool output, attempted loop stops at `max_tool_calls`, terminal-state always defined, checkpoint interface exists — all with `FakeModelAdapter`.
 - Verification: `uv run pytest` **50 passed**; `ruff format --check` has long-line/formatting residuals in the generated test graph file (tracked), `mypy src` clean (24 files). No document/calculator tools added (TASK-005), no approval UI (TASK-010).
 
+## TASK-005 record (2026-10-11)
+
+- `search_documents(query)` over the synthetic `documents` corpus: deterministic LIKE search, per-token fallback so "refund policy" matches "Refunds … policy", capped at 5, ranked title > tags > length, every hit carries a stable DB `source_id`, title, 180-char match-window excerpt, and tags. Empty query → `validation_error`; no hits → `ok` with `count: 0` plus the explicit no-answer message (never invented sources).
+- `calculate(operation, operands)`: allowlist `add/subtract/multiply/divide/percent/total_cents`, typed 2–10 numeric operands bounded at 1e9, result guarded at 1e13, division-by-zero/NaN/inf/unsupported/missing operands as structured `validation_error`. No `eval`/`exec`/shell/expression parsing — pure deterministic Python.
+- Registry schemas `SearchDocumentsArgs` (1–500 chars) and `CalculateArgs` (strict operation pattern); `ToolCallRequest` pattern updated to include the two new names; synthetic-only `documents` rows (DOC-* ids) unchanged.
+- Final-response citation policy: `sources` listed as `Sources: <ids>` when doc hits exist; explicit "corpus lacks an answer, no sources cited" when `search_documents` returns count 0.
+- Found and fixed two real defects: (1) `:memory:` SQLite engines diverge across threads in LangGraph nodes — test fixture now uses one shared file-backed DB per factory; (2) graph appended `pending_tool_calls` instead of replacing, re-dispatching stale calls — added the `fresh` marker consumed by dispatch plus consistent router checks.
+- Verification: `uv run pytest` **75 passed**; `ruff check`/`ruff format --check` clean; `mypy src` clean (24 files). CraftX `ModelConfig`/adapter defaults were kept provider-neutral (no code changes needed for CraftX as OpenAI-compatible).
+
 ## Document search and calculator tools — interim journal
 
 - Removed or converted unused ideas during the session: prior `docs/MEMORY.md` held an orphan `ADR-013` section that belonged in `docs/DECISIONS.md` (now fixed); no chunking, caching, or evaluation work was pulled into this task.

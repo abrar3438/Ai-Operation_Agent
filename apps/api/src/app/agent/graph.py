@@ -15,7 +15,7 @@ from app.agent.state import GraphState
 def should_continue(state: GraphState) -> str:
     if state.terminal_status:
         return "final"
-    if state.pending_tool_calls:
+    if any(c.get("fresh") for c in state.pending_tool_calls):
         return "dispatch"
     if state.final_answer:
         return "final"

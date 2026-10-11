@@ -39,10 +39,10 @@
 - **Acceptance:** A basic customer/order question flows through the graph, tool outputs enter state in a typed form, and runaway tool-call loops terminate safely.
 
 ### TASK-005 — Document search and calculator tools (Day 38)
-- [ ] Implement `search_documents` against a small synthetic internal knowledge corpus with source identifiers/snippets.
-- [ ] Implement `calculate` using constrained deterministic operations; do not evaluate arbitrary Python or shell expressions.
-- [ ] Return source references for document results and typed failures for unsupported requests.
-- [ ] Add unit and integration tests for relevant, empty, malformed, and unavailable results.
+- [x] Implement `search_documents` against a small synthetic internal knowledge corpus with source identifiers/snippets.
+- [x] Implement `calculate` using constrained deterministic operations; do not evaluate arbitrary Python or shell expressions.
+- [x] Return source references for document results and typed failures for unsupported requests.
+- [x] Add unit and integration tests for relevant, empty, malformed, and unavailable results.
 - **Acceptance:** Document-based answers can cite returned source identifiers; calculations use a safe allowlisted grammar/operation set; errors do not crash the graph.
 
 ## Phase 2 — Days 39–41: action proposals, state, and reliability

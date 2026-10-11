@@ -115,6 +115,15 @@ class SearchDatabaseArgs(BaseModel):
     filters: dict[str, Any] = Field(default_factory=dict)
 
 
+class SearchDocumentsArgs(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+
+
+class CalculateArgs(BaseModel):
+    operation: str = Field(pattern=r"^(add|subtract|multiply|divide|percent|total_cents)$")
+    operands: list[float] = Field(min_length=2, max_length=10)
+
+
 # Sentinel for “no more tools needed” is handled by returning final_answer directly
 # from the model adapter (content + no tool_calls).
 

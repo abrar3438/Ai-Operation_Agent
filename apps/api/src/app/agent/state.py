@@ -14,7 +14,7 @@ class GraphState(BaseModel):
     normalized_request: str | None = None
     messages: Annotated[list[dict[str, Any]], operator.add] = Field(default_factory=list)
     tool_results: Annotated[list[dict[str, Any]], operator.add] = Field(default_factory=list)
-    pending_tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    pending_tool_calls: Annotated[list[dict[str, Any]], operator.add] = Field(default_factory=list)
     pending_approval_id: str | None = None
     step_count: int = 0
     tool_calls_count: int = 0

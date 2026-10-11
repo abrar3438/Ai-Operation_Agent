@@ -15,6 +15,9 @@ def normalize_request(state: GraphState) -> dict[str, Any]:
     normalized = raw.strip()
     if len(normalized) > 8000:
         normalized = normalized[:8000]
+    # `normalized_request` merge keeps the plain str value; the state reducer
+    # replaces `pending_tool_calls` wholesale (see state.py) so a fresh model
+    # call can never inherit a tool call from a previous step.
     return {"normalized_request": normalized, "step_count": 1}
 
 
@@ -55,6 +58,7 @@ def planning_node(model: ModelAdapter, registry: Any) -> Any:
                     "id": tc.id,
                     "name": tc.function.get("name"),
                     "arguments": tc.function.get("arguments", {}),
+                    "fresh": True,
                 }
                 for tc in response.tool_calls
             ]
@@ -74,7 +78,11 @@ def planning_node(model: ModelAdapter, registry: Any) -> Any:
 
 def tool_dispatch_node(executor: ToolExecutor, registry: Any) -> Any:
     def _node(state: GraphState) -> dict[str, Any]:
-        if not state.pending_tool_calls:
+        # pending_tool_calls uses the default append reducer, so dispatch must
+        # only act on calls placed by the immediately-preceding planning step
+        # (marked fresh) and must consume them explicitly.
+        pending = [c for c in state.pending_tool_calls if c.get("fresh")]
+        if not pending:
             return {}
         if state.tool_calls_count >= state.max_tool_calls:
             return {
@@ -85,7 +93,7 @@ def tool_dispatch_node(executor: ToolExecutor, registry: Any) -> Any:
                 },
             }
         results: list[dict[str, Any]] = []
-        for call in state.pending_tool_calls:
+        for call in pending:
             name = call.get("name", "")
             raw_args = call.get("arguments", {})
             if not registry.is_allowed(name):
@@ -134,6 +142,14 @@ def tool_dispatch_node(executor: ToolExecutor, registry: Any) -> Any:
                 tr = executor.execute_search_database(
                     raw_args["entity"], raw_args.get("filters", {})
                 )
+            elif name == "search_documents":
+                # Registry gives us a typed query; normalize string vs dict.
+                q = raw_args.get("query", "")
+                if not isinstance(q, str):
+                    q = str(q)
+                tr = executor.execute_search_documents(q)
+            elif name == "calculate":
+                tr = executor.execute_calculate(raw_args["operation"], raw_args.get("operands", []))
             else:
                 tr = ToolResult(
                     tool_name=name,
@@ -163,9 +179,15 @@ def tool_dispatch_node(executor: ToolExecutor, registry: Any) -> Any:
                     "call_id": call.get("id"),
                 }
             )
+        # Mark consumed calls so a later serialization round-trip cannot dispatch
+        # the same call twice. (`fresh: False` entries are ignored by dispatch.)
+        consumed = [
+            {**call, "fresh": False} if call.get("fresh") else call
+            for call in state.pending_tool_calls
+        ]
         return {
             "tool_results": results,
-            "pending_tool_calls": [],
+            "pending_tool_calls": consumed,
             "tool_calls_count": state.tool_calls_count + len(results),
             "step_count": state.step_count + 1,
         }
@@ -206,17 +228,46 @@ def final_response_node() -> Any:
     def _node(state: GraphState) -> dict[str, Any]:
         if state.terminal_status:
             return {}
+        # INVARIANT (TASK-005): never invent sources. If search_documents returned
+        # zero hits, surface the no-answer state instead of hallucinating.
+        doc_hits: list[dict[str, Any]] = []
+        for r in state.tool_results:
+            if r.get("tool_name") == "search_documents" and r.get("result"):
+                doc_hits.extend(r["result"].get("results", []) or [])
+        sources = [h["source_id"] for h in doc_hits]
         if state.tool_results and any(r.get("status") == "ok" for r in state.tool_results):
             ok = [r for r in state.tool_results if r.get("status") == "ok"]
+            if sources:
+                joined = ", ".join(sources)
+                return {
+                    "final_answer": f"Done. Results: {ok[-1]['result']} | Sources: {joined}",
+                    "terminal_status": "succeeded",
+                }
+            # Distinguish "no documents matched" from a successful doc search
+            search_ok_no_results = any(
+                r.get("tool_name") == "search_documents"
+                and r.get("status") == "ok"
+                and (r.get("result") or {}).get("count") == 0
+                for r in state.tool_results
+            )
+            if search_ok_no_results:
+                return {
+                    "final_answer": (
+                        "No relevant documents found in the corpus for this query. "
+                        "No source identifiers are cited because none matched."
+                    ),
+                    "terminal_status": "succeeded",
+                }
             return {
                 "final_answer": f"Done. Results: {ok[-1]['result']}",
                 "terminal_status": "succeeded",
             }
+        no_result_msg = "No successful tool result and no final answer"
         return {
             "terminal_status": "failed",
             "error": {
                 "category": "no_result",
-                "message": "No successful tool result and no final answer",
+                "message": no_result_msg,
             },
         }
 

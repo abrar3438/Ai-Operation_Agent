@@ -5,70 +5,43 @@ import sys
 import uuid
 from typing import Any
 
-import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
-
-
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from app.agent.graph import build_graph, create_in_memory_checkpoint  # noqa: E402
 from app.agent.state import GraphState  # noqa: E402
-from app.db.models import Base as DBBase  # noqa: E402
 from app.models.adapter import ModelResponse, ToolCall  # noqa: E402
 from app.models.fake_adapter import FakeModelAdapter  # noqa: E402
 from app.tools.executor import ToolExecutor  # noqa: E402
-from app.tools.registry import GetCustomerArgs, GetOrderArgs, SearchDatabaseArgs  # noqa: E402
-from app.tools.registry import ToolDefinition, ToolRegistry  # noqa: E402
-
-
-class _PGUUIDShim(sa.TypeDecorator):
-    impl = sa.CHAR(36)
-    cache_ok = True
-
-    def process_bind_param(self, value: Any, dialect: Any):  # type: ignore[no-untyped-def]
-        return None if value is None else str(value)
-
-    def process_result_value(self, value: Any, dialect: Any):  # type: ignore[no-untyped-def]
-        return None if value is None else uuid.UUID(str(value))
+from app.tools.registry import (  # noqa: E402
+    GetCustomerArgs,
+    GetOrderArgs,
+    SearchDatabaseArgs,
+    ToolDefinition,
+    ToolRegistry,
+)
+from tests.conftest import (  # noqa: E402
+    make_seeded_sqlite_session_factory,
+    make_sqlite_session_factory,
+)
 
 
 def _sqlite_factory():
-    from sqlalchemy import create_engine, event
-    from sqlalchemy.orm import sessionmaker
-
-    for table in DBBase.metadata.tables.values():
-        for column in list(table.columns):
-            if isinstance(column.type, PGUUID):
-                column.type = _PGUUIDShim()
-    engine = create_engine("sqlite:///:memory:")
-
-    @event.listens_for(engine, "connect")
-    def _enable_fk(dbapi_connection: Any, _record: Any):  # type: ignore[no-untyped-def]
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
-    DBBase.metadata.create_all(engine)
-    return sessionmaker(bind=engine, expire_on_commit=False)
+    return make_sqlite_session_factory()
 
 
 def _seeded_factory():
-    factory = _sqlite_factory()
-    from scripts.seed import seed  # type: ignore[import-untyped]
-
-    with factory() as s:
-        seed(s)
-        s.commit()
-    return factory
+    return make_seeded_sqlite_session_factory()
 
 
-def _build(factory: Any) -> tuple[ToolRegistry, ToolExecutor]:  # type: ignore[no-untyped-def]
+def _build(factory):  # type: ignore[no-untyped-def]
     executor = ToolExecutor(factory)
     registry = ToolRegistry()
     registry.register(
-        ToolDefinition(name="get_customer", description="Get customer", input_schema=GetCustomerArgs),
+        ToolDefinition(
+            name="get_customer", description="Get customer", input_schema=GetCustomerArgs
+        ),
         executor.execute_get_customer,  # type: ignore[arg-type]
     )
     registry.register(
@@ -76,13 +49,15 @@ def _build(factory: Any) -> tuple[ToolRegistry, ToolExecutor]:  # type: ignore[n
         executor.execute_get_order,  # type: ignore[arg-type]
     )
     registry.register(
-        ToolDefinition(name="search_database", description="Safe search", input_schema=SearchDatabaseArgs),
+        ToolDefinition(
+            name="search_database", description="Safe search", input_schema=SearchDatabaseArgs
+        ),
         executor.execute_search_database,  # type: ignore[arg-type]
     )
     return registry, executor
 
 
-def _registry_exec(factory: Any) -> tuple[Any, Any]:  # type: ignore[no-untyped-def]
+def _registry_exec(factory):  # type: ignore[no-untyped-def]
     return _build(factory)
 
 
@@ -99,7 +74,10 @@ def test_customer_lookup_flows_through_graph() -> None:
                     ToolCall(
                         id="c1",
                         type="function",
-                        function={"name": "get_customer", "arguments": '{"customer_id": "CUST-1001"}'},
+                        function={
+                            "name": "get_customer",
+                            "arguments": '{"customer_id": "CUST-1001"}',
+                        },
                     )
                 ],
             ),
@@ -138,7 +116,9 @@ def test_order_lookup_flows_through_graph() -> None:
         ]
     )
     graph = build_graph(adapter, executor, registry)
-    state = GraphState(run_id=uuid.uuid4(), thread_id=uuid.uuid4(), user_request="Get order ORD-5001")
+    state = GraphState(
+        run_id=uuid.uuid4(), thread_id=uuid.uuid4(), user_request="Get order ORD-5001"
+    )
     result = asyncio.run(graph.ainvoke(state.model_dump()))
     assert result["terminal_status"] == "succeeded" or any(
         r.get("tool_name") == "get_order" for r in result.get("tool_results", [])
@@ -156,7 +136,9 @@ def test_unknown_tool_is_blocked_before_dispatch() -> None:
                 content=None,
                 tool_calls=[
                     ToolCall(
-                        id="c3", type="function", function={"name": "drop_tables", "arguments": "{}"}
+                        id="c3",
+                        type="function",
+                        function={"name": "drop_tables", "arguments": "{}"},
                     )
                 ],
             ),
@@ -164,7 +146,9 @@ def test_unknown_tool_is_blocked_before_dispatch() -> None:
         ]
     )
     graph = build_graph(adapter, executor, registry)
-    state = GraphState(run_id=uuid.uuid4(), thread_id=uuid.uuid4(), user_request="Do something evil")
+    state = GraphState(
+        run_id=uuid.uuid4(), thread_id=uuid.uuid4(), user_request="Do something evil"
+    )
     result = asyncio.run(graph.ainvoke(state.model_dump()))
     results = result.get("tool_results", [])
     assert any(r.get("error_category") == "validation_error" for r in results)
@@ -224,7 +208,10 @@ def test_malformed_tool_output_is_rejected_before_state() -> None:
                     ToolCall(
                         id="c5",
                         type="function",
-                        function={"name": "get_customer", "arguments": '{"customer_id": "CUST-1001"}'},
+                        function={
+                            "name": "get_customer",
+                            "arguments": '{"customer_id": "CUST-1001"}',
+                        },
                     )
                 ],
             ),
@@ -254,7 +241,10 @@ def test_attempted_loop_stops_at_max_tool_calls() -> None:
                     ToolCall(
                         id="c6",
                         type="function",
-                        function={"name": "get_customer", "arguments": '{"customer_id": "CUST-1001"}'},
+                        function={
+                            "name": "get_customer",
+                            "arguments": '{"customer_id": "CUST-1001"}',
+                        },
                     )
                 ],
             ),
@@ -264,7 +254,10 @@ def test_attempted_loop_stops_at_max_tool_calls() -> None:
                     ToolCall(
                         id="c7",
                         type="function",
-                        function={"name": "get_customer", "arguments": '{"customer_id": "CUST-1001"}'},
+                        function={
+                            "name": "get_customer",
+                            "arguments": '{"customer_id": "CUST-1001"}',
+                        },
                     )
                 ],
             ),
@@ -274,7 +267,10 @@ def test_attempted_loop_stops_at_max_tool_calls() -> None:
                     ToolCall(
                         id="c8",
                         type="function",
-                        function={"name": "get_customer", "arguments": '{"customer_id": "CUST-1001"}'},
+                        function={
+                            "name": "get_customer",
+                            "arguments": '{"customer_id": "CUST-1001"}',
+                        },
                     )
                 ],
             ),

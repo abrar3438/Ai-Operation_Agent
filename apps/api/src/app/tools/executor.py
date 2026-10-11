@@ -11,8 +11,23 @@ from app.models.contracts import ErrorCategory, ToolCallStatus, ToolResult
 
 
 class ToolExecutor:
-    def __init__(self, session_factory):
+    def __init__(
+        self,
+        session_factory,
+        max_operand_abs: float = 1_000_000_000,  # 1e9 — guards runaway arithmetic
+        max_result_abs: float = 10_000_000_000_000,  # 1e13 — before reporting overflow
+    ) -> None:
         self.session_factory = session_factory
+        self._max_operand_abs = max_operand_abs
+        self._max_result_abs = max_result_abs
+
+    def ping(self) -> None:
+        with self.session_factory() as session:
+            from sqlalchemy import select
+
+            from app.db import models
+
+            session.scalar(select(models.Document.id).limit(1))
 
     def execute_get_customer(self, customer_id: str) -> ToolResult:
         try:
@@ -221,3 +236,216 @@ class ToolExecutor:
                 error=str(e),
                 error_category=ErrorCategory.INTERNAL_ERROR,
             )
+
+    def execute_search_documents(self, query: str) -> ToolResult:
+        try:
+            trimmed = query.strip()
+            if not trimmed:
+                return ToolResult(
+                    tool_name="search_documents",
+                    status=ToolCallStatus.ERROR,
+                    error="query must be 1-500 characters",
+                    error_category=ErrorCategory.VALIDATION_ERROR,
+                )
+            with self.session_factory() as session:
+                from sqlalchemy import select
+
+                from app.db import models
+
+                pattern = f"%{trimmed.lower()}%"
+                # Deterministic LIKE search (no vector DB; simple portable search)
+                candidates = session.scalars(
+                    select(models.Document).where(
+                        models.Document.title.ilike(pattern)
+                        | models.Document.content.ilike(pattern)
+                        | models.Document.tags.ilike(pattern)
+                    )
+                ).all()
+                # Also try per-token fallback so multi-word queries like "refund policy"
+                # match docs whose words appear non-contiguously (e.g. "Refunds ... policy").
+                if not candidates:
+                    tokens = [t for t in trimmed.lower().split() if t.strip()]
+                    if tokens:
+                        token_clauses = []
+                        for tok in tokens:
+                            pat = f"%{tok}%"
+                            token_clauses.append(
+                                models.Document.title.ilike(pat)
+                                | models.Document.content.ilike(pat)
+                                | models.Document.tags.ilike(pat)
+                            )
+                        from sqlalchemy import or_
+
+                        # OR across documents that match any token; rank prefers docs
+                        # that match more tokens
+                        candidates = session.scalars(
+                            select(models.Document).where(or_(*token_clauses))
+                        ).all()
+                ranked = sorted(
+                    candidates,
+                    key=lambda d: (
+                        0 if trimmed.lower() in d.title.lower() else 1,
+                        0 if trimmed.lower() in d.tags.lower() else 1,
+                        len(d.content),
+                        d.source_id,
+                    ),
+                )
+                hits: list[dict[str, Any]] = []
+                for doc in ranked[:5]:
+                    text = doc.content
+                    # Deterministic excerpt: first match window, or head
+                    lower = text.lower()
+                    pos = lower.find(trimmed.lower())
+                    if pos >= 0:
+                        start = max(0, pos - 40)
+                        excerpt = text[start : start + 180].strip()
+                    else:
+                        excerpt = text[:180].strip()
+                    hits.append(
+                        {
+                            "source_id": doc.source_id,
+                            "title": doc.title,
+                            "excerpt": excerpt,
+                            "tags": doc.tags,
+                        }
+                    )
+                # INVARIANT: every source_id is from the database; never invented.
+                if not hits:
+                    return ToolResult(
+                        tool_name="search_documents",
+                        status=ToolCallStatus.OK,
+                        result={
+                            "query": trimmed,
+                            "results": [],
+                            "count": 0,
+                            "message": "No relevant documents found in the corpus for this query.",
+                        },
+                    )
+                return ToolResult(
+                    tool_name="search_documents",
+                    status=ToolCallStatus.OK,
+                    result={"query": trimmed, "results": hits, "count": len(hits)},
+                )
+        except Exception as e:
+            return ToolResult(
+                tool_name="search_documents",
+                status=ToolCallStatus.ERROR,
+                error=str(e),
+                error_category=ErrorCategory.INTERNAL_ERROR,
+            )
+
+    def _validate_operand(
+        self, value: float, pos: int
+    ) -> tuple[float | None, str | None, str | None]:
+        # Typed, bounded numeric operand — no eval, no shell, no code.
+        if not isinstance(value, int | float):
+            return None, f"operand {pos} must be a number", ErrorCategory.VALIDATION_ERROR.value
+        if isinstance(value, float) and (value != value or value in (float("inf"), float("-inf"))):
+            msg = f"operand {pos} cannot be NaN/infinite"
+            return None, msg, ErrorCategory.VALIDATION_ERROR.value
+        if abs(value) > self._max_operand_abs:
+            msg = f"operand {pos} exceeds numeric limit 1e9"
+            return None, msg, ErrorCategory.VALIDATION_ERROR.value
+        return float(value), None, None
+
+    def execute_calculate(self, operation: str, operands: list[float]) -> ToolResult:  # noqa: C901
+        ops: dict[str, str] = {
+            "add": "sum of all operands",
+            "subtract": "first minus rest",
+            "multiply": "product of all operands",
+            "divide": "first divided by rest (sequentially)",
+            "percent": "percent: (operands[0] / 100) * operands[1]",
+            "total_cents": "sum then rounded to cents (mirrors order totals)",
+        }
+        if operation not in ops:
+            return ToolResult(
+                tool_name="calculate",
+                status=ToolCallStatus.ERROR,
+                error=f"Unsupported operation: {operation}. Allowed: {', '.join(sorted(ops))}",
+                error_category=ErrorCategory.VALIDATION_ERROR,
+            )
+        if not isinstance(operands, list):
+            return ToolResult(
+                tool_name="calculate",
+                status=ToolCallStatus.ERROR,
+                error="operands must be a list of 2-10 numbers",
+                error_category=ErrorCategory.VALIDATION_ERROR,
+            )
+        if len(operands) < 2 or len(operands) > 10:
+            return ToolResult(
+                tool_name="calculate",
+                status=ToolCallStatus.ERROR,
+                error="operands must contain 2-10 numbers",
+                error_category=ErrorCategory.VALIDATION_ERROR,
+            )
+        clean: list[float] = []
+        for i, raw in enumerate(operands):
+            val, err, _ = self._validate_operand(raw, i)
+            if err is not None:
+                return ToolResult(
+                    tool_name="calculate",
+                    status=ToolCallStatus.ERROR,
+                    error=err,
+                    error_category=ErrorCategory.VALIDATION_ERROR,
+                )
+            clean.append(val or 0.0)
+        try:
+            if operation == "add":
+                result = sum(clean)
+            elif operation == "subtract":
+                result = clean[0] - sum(clean[1:])
+            elif operation == "multiply":
+                result = 1.0
+                for v in clean:
+                    result *= v
+            elif operation == "divide":
+                result = clean[0]
+                for v in clean[1:]:
+                    if v == 0:
+                        return ToolResult(
+                            tool_name="calculate",
+                            status=ToolCallStatus.ERROR,
+                            error="Division by zero",
+                            error_category=ErrorCategory.VALIDATION_ERROR,
+                        )
+                    result /= v
+            elif operation == "percent":
+                if len(clean) != 2:
+                    return ToolResult(
+                        tool_name="calculate",
+                        status=ToolCallStatus.ERROR,
+                        error="percent requires exactly 2 operands (value, pct)",
+                        error_category=ErrorCategory.VALIDATION_ERROR,
+                    )
+                result = (clean[0] / 100.0) * clean[1]
+            elif operation == "total_cents":
+                result = round(sum(clean) * 100) / 100.0
+            else:
+                return ToolResult(
+                    tool_name="calculate",
+                    status=ToolCallStatus.ERROR,
+                    error=f"Unsupported operation: {operation}",
+                    error_category=ErrorCategory.VALIDATION_ERROR,
+                )
+        except OverflowError:
+            return ToolResult(
+                tool_name="calculate",
+                status=ToolCallStatus.ERROR,
+                error="Numeric overflow",
+                error_category=ErrorCategory.VALIDATION_ERROR,
+            )
+        if abs(result) > self._max_result_abs or (
+            isinstance(result, float)
+            and (result != result or result in (float("inf"), float("-inf")))
+        ):
+            return ToolResult(
+                tool_name="calculate",
+                status=ToolCallStatus.ERROR,
+                error="Result exceeds numeric limits",
+                error_category=ErrorCategory.VALIDATION_ERROR,
+            )
+        return ToolResult(
+            tool_name="calculate",
+            status=ToolCallStatus.OK,
+            result={"operation": operation, "operands": clean, "result": result},
+        )

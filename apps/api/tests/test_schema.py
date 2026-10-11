@@ -6,7 +6,6 @@ import sys
 import pytest
 import sqlalchemy as sa
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import UUID
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -14,41 +13,11 @@ if ROOT not in sys.path:
 
 from app.db import models, repositories  # noqa: E402
 from app.db.models import Base  # noqa: E402
-
-
-class PostgresUUIDShim(sa.TypeDecorator):  # noqa: N801
-    impl = sa.CHAR(36)
-    cache_ok = True
-
-    def process_bind_param(self, value, dialect):  # type: ignore[no-untyped-def]
-        return None if value is None else str(value)
-
-    def process_result_value(self, value, dialect):  # type: ignore[no-untyped-def]
-        import uuid
-
-        return None if value is None else uuid.UUID(str(value))
+from tests.conftest import make_sqlite_session_factory  # noqa: E402
 
 
 def _sqlite_session():
-    from sqlalchemy import create_engine, event
-    from sqlalchemy.orm import sessionmaker
-
-    for table in Base.metadata.tables.values():
-        for column in list(table.columns):
-            if isinstance(column.type, UUID):
-                column.type = PostgresUUIDShim()
-
-    engine = create_engine("sqlite:///:memory:")
-
-    @event.listens_for(engine, "connect")
-    def _fk_on(dbapi_connection, _record):  # type: ignore[no-untyped-def]
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, expire_on_commit=False)
-    return factory()
+    return make_sqlite_session_factory()()
 
 
 def test_table_names_and_columns_match_architecture() -> None:
