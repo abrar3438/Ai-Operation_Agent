@@ -53,6 +53,34 @@
 - Checks: `uv run pytest` **16 passed**; `ruff check` clean; `ruff format --check` clean; `mypy src` clean (15 files).
 - Schema choice recorded in `docs/DECISIONS.md` as ADR-013 (single `documents` table; chunking deferred to TASK-005 if needed).
 
+## TASK-003 record (2026-10-11)
+
+- Model adapter: `ModelConfig` (env-driven, validated, secret-safe `safe_summary()`), `ModelAdapter` ABC, `OpenAICompatibleAdapter` (httpx, timeout/retry, provider-specific code isolated), `ModelAdapterError` with `category`/`retryable`, `create_model_adapter` factory. Live provider calls optional; `FakeModelAdapter` used in all tests.
+- Contracts: `AgentRequest`, `ToolCallRequest` (pattern `get_customer|get_order|search_database`), `ToolResult`/`FinalAnswer`/`RunResult`/`AgentState`/`StructuredError`, `ErrorCategory`/`RunStatus`/`ToolCallStatus` — all Pydantic, validated at boundaries.
+- Tools: `ToolExecutor` wrapping repository calls. `get_customer`/`get_order` return typed summaries or `not_found`; `search_database` is schema-bound (`customers`/`orders`/`documents` with known filters, unknown filter/entity → `validation_error`, filter values passed as bound parameters so injection like `'; DROP TABLE' ` is just a LIKE literal).
+- Tests: `test_model_adapter.py` (10) and `test_tools.py` (16) covering config/secrets, malformed/oversized requests, unknown tool rejection, idempotency guard, missing record, unknown entity/filter, injection no-escape, and fake-adapter behavior — all deterministic, no `LLM_API_KEY` required.
+- Verification: `uv run pytest` **42 passed**; `ruff check`/`ruff format --check` clean; `mypy src` clean (20 files). No LangGraph, ticket, or report logic added (TASK-004+ scope).
+
+## TASK-004 record (2026-10-11)
+
+- Baseline workflow: `StateGraph[GraphState]` with nodes `normalize → plan → dispatch → handle → final`, no single giant function; provider code stayed in `ModelAdapter`, tool code in `ToolExecutor`, graph code in `agent/`. Budgets are config-driven (`max_steps`/`max_tool_calls`) and every conditional path reaches `final` with `succeeded` or `failed`.
+- Registry: `ToolRegistry` with `ToolDefinition(input_schema)` + `validate_call` + `dispatch(output_type_guard)`; tools expose `get_tools_for_model()` for the CraftX/OpenAI-compatible endpoint. Unknown names, invalid JSON, and schema violations are `validation_error` before dispatch; malformed `result` (non-dict) is `invalid_response` before it enters state.
+- Checkpointing: `langgraph 1.2.14` with `InMemorySaver` for tests (`create_in_memory_checkpoint`) and `PostgresSaver` via `psycopg` `dict_row` (`create_postgres_checkpoint`). Verified against the installed package (`langgraph.checkpoint.memory`/`langgraph.checkpoint.postgres`, `psycopg 3.3.6` + `langgraph-checkpoint-postgres 3.1.2`). Approval pause/resume persistence defers to this path in TASK-010; TASK-004 does not invent support the package doesn't have.
+- Tests: `test_graph_baseline.py` (8) — customer lookup, order lookup, unknown tool blocked, invalid tool arguments, malformed tool output, attempted loop stops at `max_tool_calls`, terminal-state always defined, checkpoint interface exists — all with `FakeModelAdapter`.
+- Verification: `uv run pytest` **50 passed**; `ruff format --check` has long-line/formatting residuals in the generated test graph file (tracked), `mypy src` clean (24 files). No document/calculator tools added (TASK-005), no approval UI (TASK-010).
+
+## Document search and calculator tools — interim journal
+
+- Removed or converted unused ideas during the session: prior `docs/MEMORY.md` held an orphan `ADR-013` section that belonged in `docs/DECISIONS.md` (now fixed); no chunking, caching, or evaluation work was pulled into this task.
+
+## TASK-003 record (2026-10-11)
+
+- Model adapter: `ModelConfig` (env-driven, validated, secret-safe `safe_summary()`), `ModelAdapter` ABC, `OpenAICompatibleAdapter` (httpx, timeout/retry, provider-specific code isolated), `ModelAdapterError` with `category`/`retryable`, `create_model_adapter` factory. Live provider calls optional; `FakeModelAdapter` used in all tests.
+- Contracts: `AgentRequest`, `ToolCallRequest` (pattern `get_customer|get_order|search_database`), `ToolResult`/`FinalAnswer`/`RunResult`/`AgentState`/`StructuredError`, `ErrorCategory`/`RunStatus`/`ToolCallStatus` — all Pydantic, validated at boundaries.
+- Tools: `ToolExecutor` wrapping repository calls. `get_customer`/`get_order` return typed summaries or `not_found`; `search_database` is schema-bound (`customers`/`orders`/`documents` with known filters, unknown filter/entity → `validation_error`, filter values passed as bound parameters so injection like `'; DROP TABLE' ` is just a LIKE literal).
+- Tests: `test_model_adapter.py` (10) and `test_tools.py` (16) covering config/secrets, malformed/oversized requests, unknown tool rejection, idempotency guard, missing record, unknown entity/filter, injection no-escape, and fake-adapter behavior — all deterministic, no `LLM_API_KEY` required.
+- Verification: `uv run pytest` **42 passed**; `ruff check`/`ruff format --check` clean; `mypy src` clean (20 files). No LangGraph, ticket, or report logic added (TASK-004+ scope).
+
 ## Current task
 
 **Next:** `TASK-003 — Model adapter and structured response contracts (Day 36)`.

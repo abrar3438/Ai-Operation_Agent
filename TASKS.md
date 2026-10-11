@@ -24,18 +24,18 @@
 ## Phase 1 — Days 36–38: tools, structured output, graph, and read-only capabilities
 
 ### TASK-003 — Model adapter and structured response contracts (Day 36)
-- [ ] Build one model adapter configured by environment variables; keep provider-specific code isolated.
-- [ ] Validate required config at startup and fail with actionable, secret-safe errors.
-- [ ] Define typed schemas for agent request, tool calls, tool results, run status, and final answer.
-- [ ] Add the initial tools: `get_customer`, `get_order`, and safe `search_database` over predefined repositories/filters.
-- [ ] Add deterministic tests using a fake model adapter so core tests do not require paid API calls.
+- [x] Build one model adapter configured by environment variables; keep provider-specific code isolated.
+- [x] Validate required config at startup and fail with actionable, secret-safe errors.
+- [x] Define typed schemas for agent request, tool calls, tool results, run status, and final answer.
+- [x] Add the initial tools: `get_customer`, `get_order`, and safe `search_database` over predefined repositories/filters.
+- [x] Add deterministic tests using a fake model adapter so core tests do not require paid API calls.
 - **Acceptance:** The adapter is configurable; malformed inputs are rejected; the model cannot call arbitrary functions or execute arbitrary SQL; tests run without an external model key.
 
 ### TASK-004 — LangGraph baseline workflow (Day 37)
-- [ ] Define typed graph state and explicit nodes for request normalization, reasoning/tool selection, tool execution, result handling, and final response.
-- [ ] Register tools through an allowlist; validate every call before dispatch.
-- [ ] Add a configurable maximum number of graph/tool steps and reliable terminal status.
-- [ ] Add checkpointing/persistence strategy suitable for pausing and resuming approval workflows.
+- [x] Define typed graph state and explicit nodes for request normalization, reasoning/tool selection, tool execution, result handling, and final response.
+- [x] Register tools through an allowlist; validate every call before dispatch.
+- [x] Add a configurable maximum number of graph/tool steps and reliable terminal status.
+- [x] Add checkpointing/persistence strategy suitable for pausing and resuming approval workflows.
 - **Acceptance:** A basic customer/order question flows through the graph, tool outputs enter state in a typed form, and runaway tool-call loops terminate safely.
 
 ### TASK-005 — Document search and calculator tools (Day 38)
