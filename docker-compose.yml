@@ -1,0 +1,103 @@
+name: ai-operations-agent
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: agent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-agentdb}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - agent_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-agentdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: agent-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - agent_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  api:
+    build: ./apps/api
+    container_name: agent-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-agentdb}
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-8001}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live', timeout=5)\""]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  web:
+    build: ./apps/web
+    container_name: agent-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${WEB_HOST_PORT:-3000}:3000"
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: agent-pgadmin
+    restart: unless-stopped
+    profiles:
+      - dev-tools
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./infra/pgadmin/servers.json:/pgadmin4/servers.json:ro
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-replace_with_a_local_pgadmin_password}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_CONFIG_CONSOLE_LOG_LEVEL: "10"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        if [ -z "$$(/venv/bin/python /pgadmin4/setup.py dump-servers /tmp/servers-check.json --user pgadmin4@pgadmin.org 2>/dev/null | grep -c '"Name"')" ]; then :; fi
+        COUNT=$$(grep -c '"AI Operations Agent (local)"' /tmp/servers-check.json 2>/dev/null || echo 0)
+        if [ "$$COUNT" = "0" ]; then /venv/bin/python /pgadmin4/setup.py load-servers /pgadmin4/servers.json --user pgadmin4@pgadmin.org || true; fi
+        rm -f /tmp/servers-check.json
+        exec /entrypoint.sh
+    ports:
+      - "127.0.0.1:${PGADMIN_HOST_PORT:-5050}:80"
+
+volumes:
+  agent_pgdata:
+  agent_redisdata:

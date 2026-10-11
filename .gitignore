@@ -1,0 +1,49 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+site/
+*.egg-info/
+
+# Frontend / Node
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local application state and generated output
+logs/
+*.log
+local-data/
+.tmp/
+.tmp-*/
+eval-results/
+!evals/README.md
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local database dumps / exports
+*.dump
+*.sql.gz
+*.sqlite
+*.sqlite3
