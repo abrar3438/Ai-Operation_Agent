@@ -121,3 +121,13 @@ Status labels are planning defaults. If implementation reveals a better option, 
 **Reason:** The MVP corpus is five short synthetic documents; chunking adds schema and retrieval complexity with no measurable benefit at this scale. TASK-005 can introduce chunking with its own migration if real retrieval needs it.
 
 **Consequences:** `search_documents` queries one table via bounded LIKE with a 50-row cap. Citation behavior still returns stable `source_id` values.
+
+## ADR-014 — Fresh-entry convention for the append-only tool-call buffer
+
+**Status:** Accepted for implementation
+
+**Decision:** Keep `pending_tool_calls` on the compiled append reducer (`operator.add` → `BinaryOperatorAggregate` in `langgraph 1.2.14`) and gate all dispatch/routers on fresh entries (`fresh: True` = placed by the immediately-preceding planning step; consumed entries are rewritten `fresh: False` in place).
+
+**Reason:** Installed-package verification, not assumption: inspecting `StateGraph(GraphState).channels` shows `pending_tool_calls` as `BinaryOperatorAggregate` while every other channel is `LastValue`, so full-list writes merge rather than replace in this version. The fresh-entry convention is the smallest change that preserves TASK-004/006 semantics (unknown-tool/invalid-args/malformed-output guards, single-consumption, loop budgets) without hand-rolled reducers or inventing unsupported checkpointer APIs.
+
+**Consequences:** Resume audits `tool_results`, not the control buffer. If a future LangGraph version changes Pydantic reducer handling, re-verify the compiled channels and update this ADR before changing the convention.

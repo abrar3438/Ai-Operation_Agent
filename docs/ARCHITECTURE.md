@@ -100,6 +100,8 @@ Graph state should use typed, minimal fields. Suggested fields:
 
 Never store provider keys or secrets in graph state. Do not persist more personal/customer data than required. Define checkpoint retention and deletion behavior before any real sensitive data is introduced.
 
+**TASK-007 state/memory boundaries:** `GraphState` (`apps/api/src/app/agent/state.py`) is transient run control only — bounded request text, compact assistant notes, structured tool observations (name/status/typed result/source IDs), selected-tool metadata, pending control entries, and terminal status. No hidden chain-of-thought, no provider keys, no raw private payloads. Durable truth is PostgreSQL (`agent_runs`, `tool_events`, `approval_requests`, evaluation tables). Budgets are config-driven (`AGENT_MAX_STEPS`, `AGENT_MAX_TOOL_CALLS`, `AGENT_MAX_INPUT_CHARS`, `AGENT_MAX_OUTPUT_CHARS`, `AGENT_MAX_TOOL_RESULTS`, `AGENT_MAX_MESSAGE_CHARS`) and `initial_state`/`compact_state`/`sanitize_result_for_state` enforce them; `state_snapshot_secret_free` rejects secret-bearing state before persistence. The compiled control buffer `pending_tool_calls` is an append reducer (not LastValue) in `langgraph 1.2.14` — verified by inspecting the compiled graph channels, not assumed — so planning/dispatch/routers follow the fresh-entry convention recorded in ADR-014.
+
 ## 6. Tool contracts and policy
 
 | Tool | Classification | Contract expectation | Safety rule |

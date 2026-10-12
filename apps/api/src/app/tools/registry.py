@@ -124,6 +124,23 @@ class CalculateArgs(BaseModel):
     operands: list[float] = Field(min_length=2, max_length=10)
 
 
+class CreateTicketArgs(BaseModel):
+    title: str = Field(min_length=1, max_length=240)
+    priority: str = Field(pattern=r"^(low|normal|high|urgent)$")
+    customer_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
+    description: str = Field(default="", max_length=4000)
+    idempotency_key: str = Field(min_length=8, max_length=128)
+    requesting_run_id: str | None = Field(default=None, max_length=64)
+
+
+class SendReportArgs(BaseModel):
+    title: str = Field(min_length=1, max_length=240)
+    destination: str = Field(default="mock", min_length=1, max_length=240)
+    payload_json: str = Field(default="{}", max_length=8000)
+    idempotency_key: str = Field(min_length=8, max_length=128)
+    requesting_run_id: str | None = Field(default=None, max_length=64)
+
+
 # Sentinel for “no more tools needed” is handled by returning final_answer directly
 # from the model adapter (content + no tool_calls).
 

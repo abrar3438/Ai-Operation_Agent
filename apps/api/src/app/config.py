@@ -36,6 +36,13 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
+    agent_max_steps: int = Field(default=12, ge=1, le=50)
+    agent_max_tool_calls: int = Field(default=8, ge=1, le=50)
+    agent_max_input_chars: int = Field(default=8000, ge=100, le=32000)
+    agent_max_output_chars: int = Field(default=12000, ge=100, le=64000)
+    agent_max_tool_results: int = Field(default=20, ge=1, le=100)
+    agent_max_message_chars: int = Field(default=2000, ge=100, le=16000)
+
     @field_validator("database_url", mode="before")
     @classmethod
     def require_database_url(cls, value: object) -> object:
@@ -61,6 +68,12 @@ class Settings(BaseSettings):
             "redis_url_configured": bool(self.redis_url),
             "database_url_configured": True,
             "cors_origins": self.cors_origins,
+            "agent_max_steps": self.agent_max_steps,
+            "agent_max_tool_calls": self.agent_max_tool_calls,
+            "agent_max_input_chars": self.agent_max_input_chars,
+            "agent_max_output_chars": self.agent_max_output_chars,
+            "agent_max_tool_results": self.agent_max_tool_results,
+            "agent_max_message_chars": self.agent_max_message_chars,
         }
 
 

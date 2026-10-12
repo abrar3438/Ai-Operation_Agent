@@ -48,17 +48,17 @@
 ## Phase 2 — Days 39–41: action proposals, state, and reliability
 
 ### TASK-006 — Ticket and report action proposals (Day 39)
-- [ ] Implement schemas and handlers for `create_ticket` and `send_report` as **pending action proposals**, not immediate external side effects.
-- [ ] Persist action intent, validated arguments, requesting run, and pending status.
-- [ ] Add idempotency keys so a resumed/retried graph cannot create duplicate action proposals.
-- [ ] Keep adapters mocked/local; no real email delivery or external ticket provider by default.
+- [x] Implement schemas and handlers for `create_ticket` and `send_report` as **pending action proposals**, not immediate external side effects.
+- [x] Persist action intent, validated arguments, requesting run, and pending status.
+- [x] Add idempotency keys so a resumed/retried graph cannot create duplicate action proposals.
+- [x] Keep adapters mocked/local; no real email delivery or external ticket provider by default.
 - **Acceptance:** Calling an action tool only creates a pending approval item. Tests prove that no ticket/report is executed before approval.
 
 ### TASK-007 — State, conversation context, memory, and step limits (Day 40)
-- [ ] Define which context is retained per run and what is persisted across runs.
-- [ ] Keep short-term graph state separate from durable operational records and any optional user-visible conversation history.
-- [ ] Set maximum graph steps, maximum tool invocations, context size limits, and output-size limits.
-- [ ] Ensure checkpoint state does not contain API keys or unnecessary private payloads.
+- [x] Define which context is retained per run and what is persisted across runs.
+- [x] Keep short-term graph state separate from durable operational records and any optional user-visible conversation history.
+- [x] Set maximum graph steps, maximum tool invocations, context size limits, and output-size limits.
+- [x] Ensure checkpoint state does not contain API keys or unnecessary private payloads.
 - **Acceptance:** State survives a configured graph pause/restart where supported; run limits are enforced and clearly recorded; memory behavior is documented and tested.
 
 ### TASK-008 — Validation, timeouts, retries, and failure handling (Day 41)

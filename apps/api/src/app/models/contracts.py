@@ -42,7 +42,9 @@ class AgentRequest(BaseModel):
 
 
 class ToolCallRequest(BaseModel):
-    tool_name: str = Field(pattern=r"^(get_customer|get_order|search_database)$")
+    tool_name: str = Field(
+        pattern=r"^(get_customer|get_order|search_database|search_documents|calculate|create_ticket|send_report)$"
+    )
     arguments: dict[str, Any]
     idempotency_key: str = Field(min_length=8, max_length=128)
 

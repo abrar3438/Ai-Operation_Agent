@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from app.db.repositories import (
+    create_approval_request,
     get_customer,
     get_order,
 )
@@ -449,3 +451,152 @@ class ToolExecutor:
             status=ToolCallStatus.OK,
             result={"operation": operation, "operands": clean, "result": result},
         )
+
+    # ------------------------------------------------------------------
+    # TASK-006: action *proposal* tools. These persist a durable pending
+    # approval request and perform NO side effect. Execution lives behind
+    # the later approval service, which is the only caller of the mocked
+    # adapters in MockActionExecutor.
+    # ------------------------------------------------------------------
+
+    def execute_create_ticket(
+        self,
+        title: str,
+        priority: str,
+        customer_id: str,
+        description: str = "",
+        idempotency_key: str = "",
+        requesting_run_id: str | None = None,
+    ) -> ToolResult:
+        try:
+            with self.session_factory() as session, session.begin():
+                customer = get_customer(session, customer_id)
+                if customer is None:
+                    return ToolResult(
+                        tool_name="create_ticket",
+                        status=ToolCallStatus.ERROR,
+                        error=f"Customer not found: {customer_id}",
+                        error_category=ErrorCategory.NOT_FOUND,
+                    )
+                action_reference = f"ticket-draft:{customer_id}"
+                payload = {
+                    "title": title,
+                    "priority": priority,
+                    "customer_id": customer_id,
+                    "description": description,
+                }
+                record, created = create_approval_request(
+                    session,
+                    action_type="create_ticket",
+                    action_reference=action_reference,
+                    arguments_json=json.dumps(payload, sort_keys=True),
+                    idempotency_key=idempotency_key,
+                    requesting_run_id=requesting_run_id,
+                )
+                if not created:
+                    return ToolResult(
+                        tool_name="create_ticket",
+                        status=ToolCallStatus.SKIPPED,
+                        result={
+                            "proposal_id": str(record.id),
+                            "status": record.status,
+                            "duplicate": True,
+                        },
+                    )
+                return ToolResult(
+                    tool_name="create_ticket",
+                    status=ToolCallStatus.WAITING_APPROVAL,
+                    result={
+                        "proposal_id": str(record.id),
+                        "action_type": record.action_type,
+                        "status": record.status,
+                        "title": title,
+                        "priority": priority,
+                        "customer_id": customer_id,
+                    },
+                )
+        except ValueError as e:
+            return ToolResult(
+                tool_name="create_ticket",
+                status=ToolCallStatus.ERROR,
+                error=str(e),
+                error_category=ErrorCategory.VALIDATION_ERROR,
+            )
+        except Exception as e:
+            return ToolResult(
+                tool_name="create_ticket",
+                status=ToolCallStatus.ERROR,
+                error=str(e),
+                error_category=ErrorCategory.INTERNAL_ERROR,
+            )
+
+    def execute_send_report(
+        self,
+        title: str,
+        destination: str = "mock",
+        payload_json: str = "{}",
+        idempotency_key: str = "",
+        requesting_run_id: str | None = None,
+    ) -> ToolResult:
+        try:
+            try:
+                json.loads(payload_json)
+            except json.JSONDecodeError:
+                return ToolResult(
+                    tool_name="send_report",
+                    status=ToolCallStatus.ERROR,
+                    error="payload_json must be valid JSON",
+                    error_category=ErrorCategory.VALIDATION_ERROR,
+                )
+            if destination != "mock":
+                return ToolResult(
+                    tool_name="send_report",
+                    status=ToolCallStatus.ERROR,
+                    error="Only mock delivery is supported; no live delivery exists",
+                    error_category=ErrorCategory.VALIDATION_ERROR,
+                )
+            with self.session_factory() as session, session.begin():
+                action_reference = f"report-draft:{title[:48]}"
+                record, created = create_approval_request(
+                    session,
+                    action_type="send_report",
+                    action_reference=action_reference,
+                    arguments_json=payload_json,
+                    idempotency_key=idempotency_key,
+                    requesting_run_id=requesting_run_id,
+                )
+                if not created:
+                    return ToolResult(
+                        tool_name="send_report",
+                        status=ToolCallStatus.SKIPPED,
+                        result={
+                            "proposal_id": str(record.id),
+                            "status": record.status,
+                            "duplicate": True,
+                        },
+                    )
+                return ToolResult(
+                    tool_name="send_report",
+                    status=ToolCallStatus.WAITING_APPROVAL,
+                    result={
+                        "proposal_id": str(record.id),
+                        "action_type": record.action_type,
+                        "status": record.status,
+                        "title": title,
+                        "destination": destination,
+                    },
+                )
+        except ValueError as e:
+            return ToolResult(
+                tool_name="send_report",
+                status=ToolCallStatus.ERROR,
+                error=str(e),
+                error_category=ErrorCategory.VALIDATION_ERROR,
+            )
+        except Exception as e:
+            return ToolResult(
+                tool_name="send_report",
+                status=ToolCallStatus.ERROR,
+                error=str(e),
+                error_category=ErrorCategory.INTERNAL_ERROR,
+            )
