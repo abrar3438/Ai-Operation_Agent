@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import health
+from app.api.v1 import approvals, health, runs
 from app.config import get_settings
 from app.logging import configure_logging
 
@@ -24,6 +24,8 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router)
+    app.include_router(approvals.router)
+    app.include_router(runs.router)
     return app
 
 

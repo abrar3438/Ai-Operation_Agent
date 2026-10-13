@@ -129,9 +129,48 @@
 - Fixed during verification: `ModuleNotFoundError` by moving `evals/` into `apps/api/src/app/evals/` and correcting imports; `AttributeError` in `ScenarioRunner._check_success` caused by `result.get('error', {}).get(...)` failing on `None` error objects.
 - Decisions: ADR-015 (Task-bound scenario runner, determinism vs full fidelity).
 
+## TASK-010 record (2026-10-13)
+
+- Endpoints: `GET /api/v1/approvals`, `GET /api/v1/approvals/{id}`, `POST /api/v1/approvals/{id}/approve`, `POST /api/v1/approvals/{id}/reject`.
+- Authorization: `verify_operator_role` dependency checks `X-Operator-Role: operator` header (local development single-operator auth boundary, explicitly documented).
+- Safety guards: Revalidates status (`pending`), expiration (`expires_at`), and performs an atomic decision transition (`decide_approval`) wrapped in a transaction. Only approved proposals invoke `MockActionExecutor`, writing a durable `ToolEvent` audit trace. Rejections never trigger side effects.
+- Tests: `test_task010_approvals_lifecycle.py` (5) — unauthorized rejection, pending → approved → executed, pending → rejected → not executed, duplicate/late decision rejection, expired proposal failure.
+- Verification: `uv run pytest` **105 passed**; lint/format/type-check clean.
+- Documented: `TASKS.md` ticked; `docs/MEMORY.md` updated.
+
+## TASK-011 record (2026-10-13)
+
+- Router & Fallbacks: System prompt hardened to prohibit guessing missing IDs/criteria, enforcing strict allowlist tool usage and requiring clarifying questions when user details are missing.
+- Safeguards: `final_response_node` and `planning_node` updated so that tool failures cannot be falsely asserted as successful completions. Removed `operator.add` reducer from `pending_tool_calls` in `GraphState` so control buffers clear properly between turns, preventing stale tool-call loops.
+- Tests: `test_task011_router_fallbacks.py` (3) — blocks unknown tools, handles missing input with clarification, and prevents converting tool failure into success.
+- Verification: `uv run pytest` **108 passed**; lint/format/type-check clean (31 source files).
+
+## TASK-012 record (2026-10-13)
+
+- Cache Service: `CacheService` (`apps/api/src/app/cache/service.py`) provides namespaced keys (`aiops:cache:v1:{tool_name}:{sha256_params}`), explicit schema versioning (`v1`), configurable TTLs (`cache_default_ttl_seconds`), and graceful fallback during Redis outages or timeout errors.
+- Boundaries: Caching is restricted strictly to approved read-only tools (`get_customer`, `get_order`, `search_database`, `search_documents`). Write actions, approval requests, and tool errors/failures are explicitly blocked from being cached.
+- Integration: Integrated into `ToolExecutor` for customer and order lookups.
+- Tests: `test_task012_redis_caching.py` (6) — key construction/versioning, eligible tool boundaries, hit/miss/expiration, cache outage degradation, action tools exclusion, and executor integration.
+- Verification: `uv run pytest` **114 passed**; lint/format/type-check clean (32 source files).
+
+## TASK-013 record (2026-10-13)
+
+- Tracing Endpoints: `GET /api/v1/runs` (pagination, filtering by `status` and `model_label`) and `GET /api/v1/runs/{run_id}` (detailed run metrics, timestamps, duration, chronological event timeline, and associated approval records).
+- Correlation: Every agent run correlates via `run_id` and `thread_id`; tool events record sequential chronological execution order via `sequence`, stage, tool name, duration, retry count, and structured error category.
+- Security: Redaction filters and state sanitizers ensure API keys, authorization headers, and secrets are never stored in traces or logs.
+- Tests: `test_task013_run_traces.py` (3) — pagination and filtering, chronological trace ordering and run details retrieval, and 404 handling for missing runs.
+- Verification: `uv run pytest` **117 passed**; lint/format/type-check clean (33 source files).
+
+## TASK-014 record (2026-10-13)
+
+- Evaluation Service: `EvaluationService` (`apps/api/src/app/evals/evaluation_service.py`) executes versioned scenarios (`v1` dataset), computes metrics (completion rate, error rate, safety policy violations, median and p95 latency), and writes machine-readable JSON reports plus human-readable Markdown summaries to `evals/reports/`.
+- Separation: Safety policy violations are tracked independently from answer quality and task success.
+- Tests: `test_task014_evaluations.py` (1) — runs full v1 dataset evaluation with deterministic fake adapter, verifies report structure and metrics calculation.
+- Verification: `uv run pytest` **118 passed**; lint/format/type-check clean (34 source files).
+
 ## Current task
 
-**Next:** `TASK-010 — Approval pause/resume and UI console`.
+**Next:** `TASK-015 — Stress, fault-injection, and security pass (Day 48)`.
 
 ## Key invariants that must not change casually
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.cache.service import CacheService
 from app.db.repositories import (
     create_approval_request,
     get_customer,
@@ -16,10 +17,12 @@ class ToolExecutor:
     def __init__(
         self,
         session_factory,
+        cache_service: CacheService | None = None,
         max_operand_abs: float = 1_000_000_000,  # 1e9 — guards runaway arithmetic
         max_result_abs: float = 10_000_000_000_000,  # 1e13 — before reporting overflow
     ) -> None:
         self.session_factory = session_factory
+        self.cache = cache_service or CacheService()
         self._max_operand_abs = max_operand_abs
         self._max_result_abs = max_result_abs
 
@@ -32,6 +35,18 @@ class ToolExecutor:
             session.scalar(select(models.Document.id).limit(1))
 
     def execute_get_customer(self, customer_id: str) -> ToolResult:
+        params = {"customer_id": customer_id}
+        cached = self.cache.get("get_customer", params)
+        if cached is not None:
+            return ToolResult(
+                tool_name="get_customer",
+                status=ToolCallStatus(cached.get("status", "ok")),
+                result=cached.get("result"),
+                error=cached.get("error"),
+                error_category=ErrorCategory(cached["error_category"])
+                if cached.get("error_category")
+                else None,
+            )
         try:
             with self.session_factory() as session:
                 customer = get_customer(session, customer_id)
@@ -48,11 +63,13 @@ class ToolExecutor:
                     tier=customer.tier,
                     status=customer.status,
                 )
-                return ToolResult(
+                tr = ToolResult(
                     tool_name="get_customer",
                     status=ToolCallStatus.OK,
                     result=summary.model_dump(),
                 )
+                self.cache.set("get_customer", params, tr.model_dump(mode="json"))
+                return tr
         except Exception as e:
             return ToolResult(
                 tool_name="get_customer",
@@ -61,8 +78,19 @@ class ToolExecutor:
                 error_category=ErrorCategory.INTERNAL_ERROR,
             )
 
-
     def execute_get_order(self, order_id: str) -> ToolResult:
+        params = {"order_id": order_id}
+        cached = self.cache.get("get_order", params)
+        if cached is not None:
+            return ToolResult(
+                tool_name="get_order",
+                status=ToolCallStatus(cached.get("status", "ok")),
+                result=cached.get("result"),
+                error=cached.get("error"),
+                error_category=ErrorCategory(cached["error_category"])
+                if cached.get("error_category")
+                else None,
+            )
         try:
             with self.session_factory() as session:
                 order = get_order(session, order_id)
@@ -81,11 +109,13 @@ class ToolExecutor:
                     currency=order.currency,
                     summary=order.summary,
                 )
-                return ToolResult(
+                tr = ToolResult(
                     tool_name="get_order",
                     status=ToolCallStatus.OK,
                     result=summary.model_dump(),
                 )
+                self.cache.set("get_order", params, tr.model_dump(mode="json"))
+                return tr
         except Exception as e:
             return ToolResult(
                 tool_name="get_order",

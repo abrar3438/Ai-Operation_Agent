@@ -109,8 +109,20 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 status_code = e.response.status_code
                 # Retry only transient: 429 (rate limit), 5xx (server error)
                 is_transient = status_code == 429 or status_code >= 500
-                category = "rate_limit_error" if status_code == 429 else ("provider_error" if status_code >= 500 else "authorization_error" if status_code in (401, 403) else "validation_error")
-                
+                category = (
+                    "rate_limit_error"
+                    if status_code == 429
+                    else (
+                        "provider_error"
+                        if status_code >= 500
+                        else (
+                            "authorization_error"
+                            if status_code in (401, 403)
+                            else "validation_error"
+                        )
+                    )
+                )
+
                 if is_transient and attempt < self.config.max_retries:
                     await self._backoff(attempt)
                     continue

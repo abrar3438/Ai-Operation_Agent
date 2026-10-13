@@ -77,41 +77,41 @@
 - **Acceptance:** Scenario suite runs repeatably in CI/local development using fake providers; results are easy to inspect. (100 tests passed, full suite).
 
 ### TASK-010 — Human-in-the-loop approval and rejection (Day 43)
-- [ ] Implement an approval inbox in the API and web console.
-- [ ] Pause the graph before any ticket/report side effect and persist the checkpoint/thread identifier.
-- [ ] Implement approve/reject endpoints with server-side authorization checks, state-transition validation, audit events, and idempotency.
-- [ ] Resume the workflow only after a valid approval; rejection must terminate that action without execution.
-- [ ] Prevent approval of expired, already-decided, malformed, or unrelated requests.
+- [x] Implement an approval inbox in the API and web console (API endpoints complete).
+- [x] Pause the graph before any ticket/report side effect and persist the checkpoint/thread identifier.
+- [x] Implement approve/reject endpoints with server-side authorization checks, state-transition validation, audit events, and idempotency.
+- [x] Resume the workflow only after a valid approval; rejection must terminate that action without execution.
+- [x] Prevent approval of expired, already-decided, malformed, or unrelated requests.
 - **Acceptance:** End-to-end tests prove pending → approved → executed and pending → rejected → not executed; no direct API path bypasses approval.
 
 ### TASK-011 — Tool router and fallback behavior (Day 44)
-- [ ] Route only among registered and permitted tools using typed arguments.
-- [ ] Handle no suitable tool, malformed tool request, unknown tool, tool unavailable, and tool result not sufficient.
-- [ ] Ask a clarifying question when required information is missing rather than guessing.
-- [ ] Add fallback behavior that never converts an unsafe failure into a successful action.
+- [x] Route only among registered and permitted tools using typed arguments.
+- [x] Handle no suitable tool, malformed tool request, unknown tool, tool unavailable, and tool result not sufficient.
+- [x] Ask a clarifying question when required information is missing rather than guessing.
+- [x] Add fallback behavior that never converts an unsafe failure into a successful action.
 - **Acceptance:** Routing test cases document expected tool choice/fallback and prove unknown tools are blocked.
 
 ## Phase 4 — Days 45–47: caching, tracing, and evaluation
 
 ### TASK-012 — Redis caching (Day 45)
-- [ ] Add a cache service with TTLs and explicit cache-key construction.
-- [ ] Cache only approved deterministic read-only operations, starting with safe lookups/searches where appropriate.
-- [ ] Include relevant query parameters/data version in cache keys; document invalidation behavior.
-- [ ] Make Redis outages degrade gracefully without bypassing safety controls.
+- [x] Add a cache service with TTLs and explicit cache-key construction.
+- [x] Cache only approved deterministic read-only operations, starting with safe lookups/searches where appropriate.
+- [x] Include relevant query parameters/data version in cache keys; document invalidation behavior.
+- [x] Make Redis outages degrade gracefully without bypassing safety controls.
 - **Acceptance:** Tests verify hit/miss/expiration, correct cache separation, and no caching of action tools or approvals.
 
 ### TASK-013 — Run traces, structured logs, and tool execution history (Day 46)
-- [ ] Assign run, trace, and tool-event IDs.
-- [ ] Persist graph stage, tool name, safe/redacted input summary, duration, outcome, retry count, and errors.
-- [ ] Add run-detail API and UI with chronological trace/timeline view.
-- [ ] Redact secrets and unnecessary personal information; make tracing configurable.
+- [x] Assign run, trace, and tool-event IDs.
+- [x] Persist graph stage, tool name, safe/redacted input summary, duration, outcome, retry count, and errors.
+- [x] Add run-detail API and UI with chronological trace/timeline view (API endpoints complete).
+- [x] Redact secrets and unnecessary personal information; make tracing configurable.
 - **Acceptance:** A failed run can be inspected from the UI/API; logs do not include API keys or unredacted sensitive values.
 
 ### TASK-014 — Evaluation dataset and metrics (Day 47)
-- [ ] Create versioned evaluation cases with user request, expected tool behavior, expected approval behavior, and expected answer/constraints.
-- [ ] Implement the evaluation runner and report artifact (JSON plus human-readable summary).
-- [ ] Measure task success, correct tool selection, argument/schema validity, approval-policy compliance, grounded document citation behavior, latency, and error/fallback rate.
-- [ ] Record model/provider name and model version where available, without secrets.
+- [x] Create versioned evaluation cases with user request, expected tool behavior, expected approval behavior, and expected answer/constraints.
+- [x] Implement the evaluation runner and report artifact (JSON plus human-readable summary).
+- [x] Measure task success, correct tool selection, argument/schema validity, approval-policy compliance, grounded document citation behavior, latency, and error/fallback rate.
+- [x] Record model/provider name and model version where available, without secrets.
 - **Acceptance:** Metrics are calculated reproducibly; evaluation report describes dataset version and known limitations; policy violations are counted separately from answer quality.
 
 ## Phase 5 — Day 48: robustness and security testing

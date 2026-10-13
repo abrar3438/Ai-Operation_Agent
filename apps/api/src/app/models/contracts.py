@@ -36,7 +36,6 @@ class ErrorCategory(str, Enum):
     RATE_LIMIT_ERROR = "rate_limit_error"  # Transient: slow down
 
 
-
 class AgentRequest(BaseModel):
     request_id: uuid.UUID = Field(default_factory=uuid.uuid4)
     user_request: str = Field(min_length=1, max_length=8000)

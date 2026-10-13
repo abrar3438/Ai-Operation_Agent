@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-import asyncio
 import uuid
 from typing import Any
 
 from app.agent.graph import build_graph
 from app.agent.state import initial_state
-from app.models.adapter import ModelAdapter, ModelResponse, ToolCall
-from app.models.fake_adapter import FakeModelAdapter
+from app.evals.schemas import Scenario
+from app.models.adapter import ModelAdapter
 from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
-from app.evals.schemas import Scenario
 
 
 class ScenarioRunner:
@@ -27,11 +25,11 @@ class ScenarioRunner:
             thread_id=uuid.uuid4(),
         )
         result = await graph.ainvoke(state.model_dump())
-        
+
         # Extract metadata for evaluation
         tool_results = result.get("tool_results", [])
         used_tools = [r.get("tool_name") for r in tool_results]
-        
+
         return {
             "scenario_id": scenario.id,
             "status": result.get("terminal_status"),
@@ -45,12 +43,14 @@ class ScenarioRunner:
         # Simplified success check
         if scenario.expected_terminal_status != result.get("terminal_status"):
             return False
-        if scenario.expected_error_category and scenario.expected_error_category != result.get("error", {}).get("category"):
+        if scenario.expected_error_category and scenario.expected_error_category != result.get(
+            "error", {}
+        ).get("category"):
             return False
-        
+
         answer = result.get("final_answer") or ""
         for keyword in scenario.expected_answer_contains:
             if keyword not in answer:
                 return False
-                
+
         return True

@@ -37,7 +37,7 @@ class GraphState(BaseModel):
     # by rewriting fresh flags in place (see nodes.tool_dispatch_node), and
     # every reader uses the fresh-only convention. The field keeps the
     # append reducer supported by this LangGraph version.
-    pending_tool_calls: Annotated[list[dict[str, Any]], operator.add] = Field(default_factory=list)
+    pending_tool_calls: list[dict[str, Any]] = Field(default_factory=list)
     pending_approval_id: str | None = None
     step_count: int = 0
     tool_calls_count: int = 0
