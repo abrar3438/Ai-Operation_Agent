@@ -57,9 +57,10 @@ class ToolExecutor:
             return ToolResult(
                 tool_name="get_customer",
                 status=ToolCallStatus.ERROR,
-                error=str(e),
+                error=f"Database error: {str(e)}",
                 error_category=ErrorCategory.INTERNAL_ERROR,
             )
+
 
     def execute_get_order(self, order_id: str) -> ToolResult:
         try:

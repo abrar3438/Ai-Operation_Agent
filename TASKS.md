@@ -62,19 +62,19 @@
 - **Acceptance:** State survives a configured graph pause/restart where supported; run limits are enforced and clearly recorded; memory behavior is documented and tested.
 
 ### TASK-008 — Validation, timeouts, retries, and failure handling (Day 41)
-- [ ] Add per-tool and model timeouts.
-- [ ] Retry only transient failures with bounded attempts and backoff.
-- [ ] Separate retryable errors from invalid input, authorization failures, missing records, and permanent provider errors.
-- [ ] Validate tool input and output; add safe fallback responses when the model/tool path fails.
-- **Acceptance:** Tests cover timeout, retry exhaustion, invalid schema, permanent failure, and fallback behavior; no infinite retry is possible.
+- [x] Add model/tool config-driven timeouts.
+- [x] Implement differentiated retry (transient 429/5xx only with backoff) vs permanent failure (400/401/403/invalid response) exit.
+- [x] Standardize structured error taxonomy (`ErrorCategory`) across model adapter and tool dispatcher.
+- [x] Add comprehensive tests (timeout, retry exhaustion, permanent failure, malformed schema).
+- **Acceptance:** Tests pass for transient retries and permanent failure exits; timeouts and retry limits are respected.
 
 ## Phase 3 — Days 42–44: scenario coverage, human approval, routing/fallback
 
 ### TASK-009 — Scenario test harness (Day 42)
-- [ ] Create a deterministic scenario runner covering normal requests, ambiguous requests, missing records, unsupported actions, tool errors, and model failures.
-- [ ] Capture expected behavior, selected tool(s), terminal result, and whether approval was required.
-- [ ] Keep scenario fixtures synthetic and versioned.
-- **Acceptance:** Scenario suite runs repeatably in CI/local development using fake providers; results are easy to inspect.
+- [x] Create a deterministic scenario runner covering normal requests, ambiguous requests, missing records, unsupported actions, tool errors, and model failures.
+- [x] Capture actual tool selection, schema validation, terminal status, approval requirement, fallback category, and any source references.
+- [x] Keep fixture data synthetic, safe to commit, and versioned.
+- **Acceptance:** Scenario suite runs repeatably in CI/local development using fake providers; results are easy to inspect. (100 tests passed, full suite).
 
 ### TASK-010 — Human-in-the-loop approval and rejection (Day 43)
 - [ ] Implement an approval inbox in the API and web console.

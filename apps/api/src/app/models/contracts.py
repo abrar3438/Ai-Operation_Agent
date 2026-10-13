@@ -25,14 +25,16 @@ class ToolCallStatus(str, Enum):
 
 
 class ErrorCategory(str, Enum):
-    VALIDATION_ERROR = "validation_error"
-    NOT_FOUND = "not_found"
-    TIMEOUT = "timeout"
-    PROVIDER_ERROR = "provider_error"
-    AUTHORIZATION_ERROR = "authorization_error"
-    INTERNAL_ERROR = "internal_error"
-    MAX_RETRIES_EXCEEDED = "max_retries_exceeded"
-    INVALID_RESPONSE = "invalid_response"
+    VALIDATION_ERROR = "validation_error"  # Permanent: user input was bad
+    NOT_FOUND = "not_found"  # Permanent: record does not exist
+    TIMEOUT = "timeout"  # Transient: request hung
+    PROVIDER_ERROR = "provider_error"  # Could be transient (5xx) or permanent (4xx)
+    AUTHORIZATION_ERROR = "authorization_error"  # Permanent: keys/credentials bad
+    INTERNAL_ERROR = "internal_error"  # Unexpected exception
+    MAX_RETRIES_EXCEEDED = "max_retries_exceeded"  # Transient exhaustion
+    INVALID_RESPONSE = "invalid_response"  # Permanent agent/model semantic mismatch
+    RATE_LIMIT_ERROR = "rate_limit_error"  # Transient: slow down
+
 
 
 class AgentRequest(BaseModel):

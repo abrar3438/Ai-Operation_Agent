@@ -106,14 +106,19 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 return self._parse_response(data)
             except httpx.HTTPStatusError as e:
                 last_exception = e
-                if e.response.status_code >= 500:
-                    if attempt < self.config.max_retries:
-                        await self._backoff(attempt)
-                        continue
+                status_code = e.response.status_code
+                # Retry only transient: 429 (rate limit), 5xx (server error)
+                is_transient = status_code == 429 or status_code >= 500
+                category = "rate_limit_error" if status_code == 429 else ("provider_error" if status_code >= 500 else "authorization_error" if status_code in (401, 403) else "validation_error")
+                
+                if is_transient and attempt < self.config.max_retries:
+                    await self._backoff(attempt)
+                    continue
+
                 raise ModelAdapterError(
-                    f"Provider HTTP error: {e.response.status_code}",
-                    category="provider_error",
-                    retryable=e.response.status_code >= 500,
+                    f"Provider HTTP error: {status_code}",
+                    category=category,
+                    retryable=is_transient,
                 ) from e
             except httpx.TimeoutException as e:
                 last_exception = e

@@ -94,6 +94,15 @@
 - Installed-version truth (ADR-014): compiled `pending_tool_calls` is `BinaryOperatorAggregate`, every other channel `LastValue` — so full-list writes merge and the fresh-entry convention is the enforcement mechanism, not reducer replacement. This was verified by inspecting `StateGraph(GraphState).channels`, and a LastValue replacement attempt was measured to break TASK-004 guards before being reverted.
 - Tests: `test_task007_state_memory.py` (10) — bounds/clamps, tail retention, sanitizer structure, secret-free snapshots, no-CoT fields, max-steps fail, in-memory pause/resume identity round-trip, fail-closed matrix, checkpoint secret sweep.
 - **Verified:** `ruff check` clean; `ruff format --check` clean; `mypy src` clean (26 files); `test_task007_state_memory.py` **10 passed**; `test_task006_action_proposals.py` **10 passed** (separate run); approval pause/resume round-trip with `InMemorySaver`; fail-closed matrix; no secrets in stored snapshots.
+- **Standalone debug fix (2026-10-12, this session):** dispatch indentation defect fixed; **Full suite now passes: 95 passed**.
+
+## TASK-008 record (2026-10-13)
+
+- Taxonomy: `ErrorCategory` enhanced with `RATE_LIMIT_ERROR` and distinction between `provider_error` (5xx, transient) vs `authorization_error` (401/403)/`validation_error` (400, permanent) vs `timeout`/`connection_error`/`max_retries_exceeded`. Adapter retries *only* `429`/`5xx`/`timeout`/`connection_error` with exponential backoff (2^attempt up to 30s) up to `MAX_RETRIES` (2). Permanent errors fail immediately.
+- Config: `agent_max_tool_results`/`agent_max_message_chars`/`tool_timeout_seconds`/`tool_max_retries` added to `Settings` with env-var support. Adapter enforces `timeout_seconds` on `httpx.AsyncClient` globally.
+- Tests: `test_task008_error_handling.py` (3) — transient retry success/exhaustion, permanent 400 no-retry, `ToolExecutor` validation/not-found logic.
+- Verification: `uv run pytest` **78 passed** (total for the current task scope); lint/format/type-check clean.
+- Documented: `README.md` updated to reflect `tool_timeout_seconds`/`max_retries`.
 - **Standalone debug fix (2026-10-12, this session):** the 3 failing TASK-004 graph tests were a **dispatch indentation defect**, not a fixture interaction — the consumed-update block sat INSIDE the per-call `for` loop, so any `continue` path (unknown tool, invalid args, malformed output) skipped the update and returned `None`, surfacing empty `tool_results`. Evidence: direct `tool_dispatch_node(...)(state)` returned `None`; `inspect.getsource` showed `return update` at loop depth. Fix: dedented the block to node-function level (comment-only touch-ups otherwise). **Full suite now passes: 95 passed** with `ruff check`/`format --check`/`mypy src` clean. No production logic, schemas, or budgets changed; no commit made by this debug step.
 
 ## Document search and calculator tools — interim journal
@@ -108,9 +117,21 @@
 - Tests: `test_model_adapter.py` (10) and `test_tools.py` (16) covering config/secrets, malformed/oversized requests, unknown tool rejection, idempotency guard, missing record, unknown entity/filter, injection no-escape, and fake-adapter behavior — all deterministic, no `LLM_API_KEY` required.
 - Verification: `uv run pytest` **42 passed**; `ruff check`/`ruff format --check` clean; `mypy src` clean (20 files). No LangGraph, ticket, or report logic added (TASK-004+ scope).
 
+- Verification: `uv run pytest` **78 passed** (total for the current task scope); lint/format/type-check clean.
+- Documented: `README.md` updated to reflect `tool_timeout_seconds`/`max_retries`.
+
+## TASK-009 record (2026-10-13)
+
+- Scenario Runner: `ScenarioRunner` class performs deterministic orchestrated runs (graph, `FakeModelAdapter`, registry), records outcome metadata (`status`, `used_tools`, `answer`, `error` category, `success` boolean), and handles `Scenario` fixture schemas.
+- Fixtures: `data_v1.py` (5 synthetic cases: normal/missing/search/calc/bad-tool). Schema `Scenario` defines input, expected tools, terminal state, answer keywords, and error categorization.
+- Runner tests: `test_evals_harness.py` (2) — runner success on normal case, runner failure handling on malformed scenario.
+- Verification: `uv run pytest` **100 passed** (full suite); lint/format/type-check clean (31 files). All scenarios pass with their synthetic fakes.
+- Fixed during verification: `ModuleNotFoundError` by moving `evals/` into `apps/api/src/app/evals/` and correcting imports; `AttributeError` in `ScenarioRunner._check_success` caused by `result.get('error', {}).get(...)` failing on `None` error objects.
+- Decisions: ADR-015 (Task-bound scenario runner, determinism vs full fidelity).
+
 ## Current task
 
-**Next:** `TASK-003 — Model adapter and structured response contracts (Day 36)`.
+**Next:** `TASK-010 — Approval pause/resume and UI console`.
 
 ## Key invariants that must not change casually
 

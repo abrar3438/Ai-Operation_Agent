@@ -2,7 +2,7 @@
 
 > A production-minded operations assistant that uses a controlled tool-calling workflow to look up customer/order information, search knowledge, calculate values, and propose operational actions with human approval.
 
-**Status:** TASK-001 complete — monorepo foundation with FastAPI health endpoints, Next.js scaffold, and Docker Compose stack. No agent tools, graph, approvals, or operational features are implemented yet. TASK-003 model adapter and read-only tools are also in place (CraftX provider; see Local development below).
+**Status:** TASK-005 complete — monorepo foundation, action proposal tools, and operational tooling (search/calc). No approval execution, UI, or evaluation runner implemented yet. TASK-003 model adapter and read-only tools are also in place (CraftX provider; see Local development below).
 
 ## Why this project exists
 

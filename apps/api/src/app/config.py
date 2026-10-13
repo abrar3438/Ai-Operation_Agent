@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     agent_max_output_chars: int = Field(default=12000, ge=100, le=64000)
     agent_max_tool_results: int = Field(default=20, ge=1, le=100)
     agent_max_message_chars: int = Field(default=2000, ge=100, le=16000)
+    tool_timeout_seconds: float = Field(default=10.0, ge=0.1, le=120.0)
+    tool_max_retries: int = Field(default=2, ge=0, le=5)
 
     @field_validator("database_url", mode="before")
     @classmethod
