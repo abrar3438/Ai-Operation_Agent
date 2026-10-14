@@ -1,14 +1,33 @@
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.agent.graph import build_graph
+from app.agent.state import initial_state
 from app.db.models import AgentRun, ApprovalRequest, ToolEvent
 from app.db.session import create_sync_engine, get_session_factory
+from app.models.adapter import ModelConfig
+from app.models.contracts import AgentRequest
+from app.models.openai_adapter import create_model_adapter
+from app.tools.executor import ToolExecutor
+from app.tools.registry import (
+    CalculateArgs,
+    CreateTicketArgs,
+    GetCustomerArgs,
+    GetOrderArgs,
+    SearchDatabaseArgs,
+    SearchDocumentsArgs,
+    SendReportArgs,
+    ToolDefinition,
+    ToolRegistry,
+)
 
 router = APIRouter(prefix="/api/v1/runs", tags=["runs"])
 
@@ -31,9 +50,123 @@ def get_db_session() -> Iterator[Session]:
         yield session
 
 
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def submit_agent_run(
+    payload: AgentRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    _: str = Depends(verify_operator_role),  # noqa: B008
+) -> dict[str, Any]:
+    try:
+        run_id = payload.request_id
+        thread_id = payload.thread_id or uuid.uuid4()
+        started_at = datetime.now(UTC)
+
+        factory = get_session_factory(create_sync_engine())
+        executor = ToolExecutor(factory)
+        registry = ToolRegistry()
+        registry.register(
+            ToolDefinition(name="get_customer", description="x", input_schema=GetCustomerArgs),
+            executor.execute_get_customer,  # type: ignore[arg-type]
+        )
+        registry.register(
+            ToolDefinition(name="get_order", description="x", input_schema=GetOrderArgs),
+            executor.execute_get_order,  # type: ignore[arg-type]
+        )
+        registry.register(
+            ToolDefinition(
+                name="search_database",
+                description="x",
+                input_schema=SearchDatabaseArgs,
+            ),
+            executor.execute_search_database,  # type: ignore[arg-type]
+        )
+        registry.register(
+            ToolDefinition(
+                name="search_documents",
+                description="x",
+                input_schema=SearchDocumentsArgs,
+            ),
+            executor.execute_search_documents,  # type: ignore[arg-type]
+        )
+        registry.register(
+            ToolDefinition(name="calculate", description="x", input_schema=CalculateArgs),
+            executor.execute_calculate,  # type: ignore[arg-type]
+        )
+        registry.register(
+            ToolDefinition(name="create_ticket", description="x", input_schema=CreateTicketArgs),
+            executor.execute_create_ticket,  # type: ignore[arg-type]
+        )
+        registry.register(
+            ToolDefinition(name="send_report", description="x", input_schema=SendReportArgs),
+            executor.execute_send_report,  # type: ignore[arg-type]
+        )
+
+        config = ModelConfig.from_env()
+        adapter = create_model_adapter(config)
+
+        graph = build_graph(adapter, executor, registry)
+        state = initial_state(
+            user_request=payload.user_request,
+            run_id=run_id,
+            thread_id=thread_id,
+            model_label=config.model,
+            provider_label=adapter.get_provider_name(),
+        )
+
+        result = await graph.ainvoke(state.model_dump())
+        finished_at = datetime.now(UTC)
+
+        term_status = result.get("terminal_status", "succeeded")
+        final_answer = result.get("final_answer")
+
+        # Persist run record
+        run_record = AgentRun(
+            run_id=str(run_id),
+            thread_id=str(thread_id),
+            request_preview=payload.user_request[:500],
+            status=term_status,
+            model_label=config.model,
+            provider_label=adapter.get_provider_name(),
+            final_answer=final_answer,
+            started_at=started_at,
+            finished_at=finished_at,
+        )
+        session.add(run_record)
+
+        # Persist tool events
+        tool_results = result.get("tool_results", [])
+        for idx, tr in enumerate(tool_results, start=1):
+            event = ToolEvent(
+                run_id=str(run_id),
+                sequence=idx,
+                stage="dispatch",
+                tool_name=tr.get("tool_name"),
+                status=tr.get("status", "ok"),
+                duration_ms=tr.get("duration_ms", 0),
+                retry_count=0,
+                error_category=tr.get("error_category"),
+                detail_summary=str(tr.get("result") or tr.get("error") or "")[:1000],
+            )
+            session.add(event)
+
+        session.commit()
+
+        return {
+            "run_id": str(run_id),
+            "thread_id": str(thread_id),
+            "status": term_status,
+            "final_answer": final_answer,
+            "pending_approval_id": result.get("pending_approval_id"),
+            "tool_results_count": len(tool_results),
+        }
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Agent execution error: {str(e)}") from e
+
+
 @router.get("")
 def list_runs(
-    status: str | None = None,
+    status_filter: str | None = Query(default=None, alias="status"),
     model_label: str | None = None,
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -41,8 +174,8 @@ def list_runs(
     _: str = Depends(verify_operator_role),  # noqa: B008
 ) -> list[dict[str, Any]]:
     query = select(AgentRun)
-    if status:
-        query = query.where(AgentRun.status == status)
+    if status_filter:
+        query = query.where(AgentRun.status == status_filter)
     if model_label:
         query = query.where(AgentRun.model_label == model_label)
 
@@ -73,7 +206,7 @@ def get_run_details(
     session: Session = Depends(get_db_session),  # noqa: B008
     _: str = Depends(verify_operator_role),  # noqa: B008
 ) -> dict[str, Any]:
-    run = session.scalar(select(AgentRun).where(Agentrun_id_cond(run_id)))  # type: ignore[attr-defined]
+    run = session.scalar(select(AgentRun).where(AgentRun.run_id == run_id))
     if run is None:
         raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
 
@@ -131,7 +264,3 @@ def get_run_details(
         "timeline": timeline,
         "approvals": approval_records,
     }
-
-
-def Agentrun_id_cond(run_id: str):
-    return AgentRun.run_id == run_id

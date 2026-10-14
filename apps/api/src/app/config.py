@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     agent_max_message_chars: int = Field(default=2000, ge=100, le=16000)
     tool_timeout_seconds: float = Field(default=10.0, ge=0.1, le=120.0)
     tool_max_retries: int = Field(default=2, ge=0, le=5)
+    cache_default_ttl_seconds: int = Field(default=300, ge=1, le=86400)
+    cache_enabled: bool = Field(default=True)
 
     @field_validator("database_url", mode="before")
     @classmethod
@@ -76,6 +78,8 @@ class Settings(BaseSettings):
             "agent_max_output_chars": self.agent_max_output_chars,
             "agent_max_tool_results": self.agent_max_tool_results,
             "agent_max_message_chars": self.agent_max_message_chars,
+            "cache_default_ttl_seconds": self.cache_default_ttl_seconds,
+            "cache_enabled": self.cache_enabled,
         }
 
 
