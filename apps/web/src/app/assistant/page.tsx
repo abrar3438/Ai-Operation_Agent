@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { RunTimeline } from "@/components/RunTimeline";
@@ -32,6 +33,8 @@ export default function AssistantPage() {
     }
   };
 
+  const isWaitingApproval = runDetails?.status === "waiting_approval" || runDetails?.approvals?.some((a) => a.status === "pending");
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -51,7 +54,7 @@ export default function AssistantPage() {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   maxLength={8000}
-                  placeholder="e.g. Get info for customer CUST-1001 or search for refund policy..."
+                  placeholder="e.g. Get info for customer CUST-1001 or propose ticket for billing..."
                   className="w-full rounded-lg border border-border p-3 text-sm text-primary bg-surface focus:outline-hidden focus:ring-2 focus:ring-accent/20 focus:border-accent resize-none font-sans"
                 />
                 <div className="flex justify-between items-center mt-1 text-xs text-secondary">
@@ -100,6 +103,24 @@ export default function AssistantPage() {
                   <p className="mt-0.5">Model: {runDetails.model_label}</p>
                 </div>
               </div>
+
+              {/* Approval Required Notice */}
+              {isWaitingApproval && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-amber-900">Approval Required</h4>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      This request has generated a pending action proposal. No ticket or report has been executed yet.
+                    </p>
+                  </div>
+                  <Link
+                    href="/approvals"
+                    className="px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 transition-colors shrink-0"
+                  >
+                    Go to Approval Inbox →
+                  </Link>
+                </div>
+              )}
 
               {/* Answer Panel */}
               <div className="bg-surface rounded-xl border border-border p-6 shadow-xs space-y-4">

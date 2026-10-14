@@ -175,9 +175,15 @@
 - API Integration: Shared API client (`apps/web/src/lib/api.ts`) connected to backend endpoints with operator auth headers (`X-Operator-Role`).
 - Verification: `npm run lint` (0 errors/warnings), `npm run typecheck` (passed), `npm run build` (compiled successfully with partial prerendering and Suspense boundaries).
 
+## Assistant Console Record (2026-10-14)
+
+- Assistant Console Page (`apps/web/src/app/assistant/page.tsx`): Fully wired to backend `POST /api/v1/runs` and `GET /api/v1/runs/{run_id}` API client.
+- Features: Request composer with visible 8,000-character limit counter, loading/disabled states, error handling, status banner, final answer rendering, source citations (`SourceReference`), sanitized tool activity timeline (`RunTimeline`), and explicit "Approval required" warning banner linking directly to `/approvals` when pending actions are proposed.
+- Verification: `npm run lint` (0 errors/warnings), `npm run typecheck` (passed), `npm run build` (compiled successfully).
+
 ## Current task
 
-**Next:** `TASK-015 — Stress, fault-injection, and security pass (Day 48)`.
+**Next:** `TASK-016 — Release polish, demo, and documentation (Day 49)`.
 
 ## Key invariants that must not change casually
 
