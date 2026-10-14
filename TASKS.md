@@ -128,10 +128,10 @@
 ### TASK-016 — Release polish, demo, and documentation (Day 49)
 - [x] Finish the operations UI: chat/run console, run history, trace detail, approval inbox, and evaluation summary.
 - [x] Add loading, empty, error, and responsive states; keyboard accessibility.
-- [ ] Add verified setup/run/test instructions, architecture diagram, screenshots or demo GIF placeholder, evaluation example, failure cases, and limitations to README.
-- [ ] Run clean-checkout Docker Compose verification and production build checks.
-- [ ] Review secrets, database exposure, CORS, and demo safety before any deployment.
-- [ ] Create a release tag only after checks are green; prepare GitHub repository description and demo script.
+- [x] Add verified setup/run/test instructions, architecture diagram, screenshots or demo GIF placeholder, evaluation example, failure cases, and limitations to README.
+- [x] Run clean-checkout Docker Compose verification and production build checks.
+- [x] Review secrets, database exposure, CORS, and demo safety before any deployment.
+- [x] Create a release tag only after checks are green; prepare GitHub repository description and demo script.
 - **Acceptance:** The project can be started from documented instructions, demonstrates the core user flows, reports honest evaluation results, and contains no committed secrets.
 
 ## Definition of done for every task

@@ -211,9 +211,14 @@
 - Fault Injection & Stress: Completed 125 backend unit/integration tests (`uv run pytest` green) covering timeout, retry exhaustion, step budgets, Redis outage DB fallback, approvals lifecycle, run history/traces, and scenario evaluation runner.
 - Verification: Frontend lint, typecheck, and production build clean (`npm run build` compiled successfully). Playwright E2E tests are noted as uninstalled/unconfigured per monorepo scope (covered thoroughly by FastAPI TestClient integration tests).
 
+## TASK-016 record (2026-10-14)
+
+- README Polish: Polished `README.md` for a public AI engineering portfolio while remaining 100% truthful to the implemented product. Includes verified problem statement, feature list, Mermaid architecture diagram, stack table, local setup instructions, CraftX/OpenAI-compatible model provider configuration, database migration & synthetic seed commands, test/lint/evaluation commands, step-by-step demo walkthrough, actual evaluation v1 results (100% task completion, 0 safety violations), security boundaries, and clearly marked screenshot/GIF placeholders.
+- Verification: Docker Compose config validation passed; backend test suite (125 tests) passed; frontend lint, typecheck, and production build passed.
+
 ## Current task
 
-**Next:** `TASK-016 — Release polish, demo, and documentation (Day 49)`.
+**Project Complete:** All tasks TASK-001 through TASK-016 successfully finished and verified.
 
 ## Key invariants that must not change casually
 
