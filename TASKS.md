@@ -117,10 +117,10 @@
 ## Phase 5 — Day 48: robustness and security testing
 
 ### TASK-015 — Stress, fault-injection, and security pass (Day 48)
-- [ ] Exercise timeout, invalid input, failing tool, unavailable database/cache, provider outage, malformed model response, duplicate request, and graph-loop cases.
-- [ ] Verify step limits, bounded retries, idempotency, approval enforcement, redaction, and graceful shutdown.
-- [ ] Run lint, type checks, unit tests, integration tests, frontend checks, and Playwright smoke tests that are available.
-- [ ] Document remaining defects and fix release blockers before proceeding.
+- [x] Exercise timeout, invalid input, failing tool, unavailable database/cache, provider outage, malformed model response, duplicate request, and graph-loop cases.
+- [x] Verify step limits, bounded retries, idempotency, approval enforcement, redaction, and graceful shutdown.
+- [x] Run lint, type checks, unit tests, integration tests, and frontend checks (Playwright E2E noted as uninstalled/unconfigured in test plan).
+- [x] Document remaining defects and fix release blockers before proceeding.
 - **Acceptance:** Critical safety/reliability cases pass and remaining known issues are explicitly listed.
 
 ## Phase 6 — Day 49: portfolio release

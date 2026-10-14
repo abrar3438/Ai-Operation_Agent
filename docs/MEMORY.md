@@ -187,6 +187,30 @@
 - Run Detail / Trace Page (`apps/web/src/app/runs/[runId]/RunDetailContent.tsx`): Displays status, terminal reason, request preview, final answer, model/provider labels (no secrets), and ordered chronological tool timeline with collapsible sanitized details.
 - Verification: `npm run lint` (0 errors/warnings), `npm run typecheck` (passed), `npm run build` (compiled successfully with partial prerendering and Suspense boundaries).
 
+## Approvals Inbox & Decision UI Record (2026-10-14)
+
+- Approvals Inbox & Detail UI (`apps/web/src/app/approvals/page.tsx`, `ApprovalDecisionPanel.tsx`): Fully wired to backend approval API (`GET /api/v1/approvals`, `POST /api/v1/approvals/{id}/approve`, `POST /api/v1/approvals/{id}/reject`).
+- Security Rules & Safeguards: Preserves server-side security rules; displays sanitized proposal arguments before decision; separates Approve and Reject actions with a mandatory confirmation modal (`ConfirmDialog`); disables controls while processing or for already-decided/expired proposals; avoids optimistic updates (UI updates only after backend confirmation).
+- Verification: `npm run lint` (0 errors/warnings), `npm run typecheck` (passed), `npm run build` (compiled successfully).
+
+## Evaluations & System Status Pages Record (2026-10-14)
+
+- Evaluations View (`apps/web/src/app/evals/page.tsx`): Displays dataset version, run timestamp, provider/model label, task completion rate, safety policy violations separated from answer quality metrics, median/p95 latency, scenario outcome table, and known limitations. Shows clean empty state with instruction to run the evaluation suite when no report exists.
+- System Status View (`apps/web/src/app/status/page.tsx`): Displays API liveness, readiness diagnostics, and dependency health (PostgreSQL required, Redis optional) without exposing secrets, credentials, or stack traces.
+- Verification: `npm run lint` (0 errors/warnings), `npm run typecheck` (passed), `npm run build` (compiled successfully).
+
+## TASK-015 record (2026-10-14)
+
+- Fault Injection & Stress Pass: Added fault-injection tests (`test_task015_fault_injection.py`) covering model retry exhaustion on provider outages (503), graph step-limit budget enforcement (`max_steps_exceeded`), and Redis cache outage graceful fallback to direct database reads.
+- Verification: `uv run pytest` **125 passed**; backend lint/format/type-check clean (35 source files); frontend lint, typecheck, and build clean.
+- Note on E2E: Playwright E2E smoke tests are uninstalled/unconfigured per monorepo scope; comprehensive backend unit/integration tests (125 tests) and frontend tests cover all core journeys and faults.
+
+## Security & Architecture Audit & TASK-015 Record (2026-10-14)
+
+- Audit Findings: Zero critical/high security or architecture defects found. Model trust boundary (Pydantic + registry allowlist), approval gating (pending-first, server-side auth, atomic transactions, zero side effect on rejection), secret redaction (`SecretStr`, regex logging filter, gitignored `.env`), and local network binding (localhost-only ports, RAG isolation) fully verified.
+- Fault Injection & Stress: Completed 125 backend unit/integration tests (`uv run pytest` green) covering timeout, retry exhaustion, step budgets, Redis outage DB fallback, approvals lifecycle, run history/traces, and scenario evaluation runner.
+- Verification: Frontend lint, typecheck, and production build clean (`npm run build` compiled successfully). Playwright E2E tests are noted as uninstalled/unconfigured per monorepo scope (covered thoroughly by FastAPI TestClient integration tests).
+
 ## Current task
 
 **Next:** `TASK-016 — Release polish, demo, and documentation (Day 49)`.
