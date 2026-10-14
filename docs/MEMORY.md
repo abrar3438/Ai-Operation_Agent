@@ -168,6 +168,13 @@
 - Tests: `test_task014_evaluations.py` (1) — runs full v1 dataset evaluation with deterministic fake adapter, verifies report structure and metrics calculation.
 - Verification: `uv run pytest` **118 passed**; lint/format/type-check clean (34 source files).
 
+## Frontend Foundation & Operations Console Record (2026-10-14)
+
+- Shell & Components: Implemented professional, calm operations console conforming to `docs/DESIGN.md` (`AppShell`, `SidebarNav`, `PageHeader`, `StatusBadge`, `MetricCard`, `DataTable`, `EmptyState`, `ErrorState`, `LoadingSkeleton`, `RunTimeline`, `ToolEventRow`, `SourceReference`, `ApprovalDecisionPanel`, `ConfirmDialog`).
+- Views: Created responsive pages for Assistant (`/assistant`), Run History (`/runs`), Run Detail/Trace (`/runs/[runId]`), Approval Inbox (`/approvals`), Evaluation Suite (`/evaluations`), and System Status (`/status`).
+- API Integration: Shared API client (`apps/web/src/lib/api.ts`) connected to backend endpoints with operator auth headers (`X-Operator-Role`).
+- Verification: `npm run lint` (0 errors/warnings), `npm run typecheck` (passed), `npm run build` (compiled successfully with partial prerendering and Suspense boundaries).
+
 ## Current task
 
 **Next:** `TASK-015 — Stress, fault-injection, and security pass (Day 48)`.

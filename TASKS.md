@@ -126,8 +126,8 @@
 ## Phase 6 — Day 49: portfolio release
 
 ### TASK-016 — Release polish, demo, and documentation (Day 49)
-- [ ] Finish the operations UI: chat/run console, run history, trace detail, approval inbox, and evaluation summary.
-- [ ] Add loading, empty, error, and responsive states; keyboard accessibility.
+- [x] Finish the operations UI: chat/run console, run history, trace detail, approval inbox, and evaluation summary.
+- [x] Add loading, empty, error, and responsive states; keyboard accessibility.
 - [ ] Add verified setup/run/test instructions, architecture diagram, screenshots or demo GIF placeholder, evaluation example, failure cases, and limitations to README.
 - [ ] Run clean-checkout Docker Compose verification and production build checks.
 - [ ] Review secrets, database exposure, CORS, and demo safety before any deployment.
