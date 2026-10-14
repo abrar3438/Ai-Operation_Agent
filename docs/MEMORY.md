@@ -181,6 +181,12 @@
 - Features: Request composer with visible 8,000-character limit counter, loading/disabled states, error handling, status banner, final answer rendering, source citations (`SourceReference`), sanitized tool activity timeline (`RunTimeline`), and explicit "Approval required" warning banner linking directly to `/approvals` when pending actions are proposed.
 - Verification: `npm run lint` (0 errors/warnings), `npm run typecheck` (passed), `npm run build` (compiled successfully).
 
+## Run History & Trace Detail Pages Record (2026-10-14)
+
+- Run History Page (`apps/web/src/app/runs/page.tsx`): Supports practical search/filtering by status and model label, pagination support, loading skeletons, empty states, and retryable error states.
+- Run Detail / Trace Page (`apps/web/src/app/runs/[runId]/RunDetailContent.tsx`): Displays status, terminal reason, request preview, final answer, model/provider labels (no secrets), and ordered chronological tool timeline with collapsible sanitized details.
+- Verification: `npm run lint` (0 errors/warnings), `npm run typecheck` (passed), `npm run build` (compiled successfully with partial prerendering and Suspense boundaries).
+
 ## Current task
 
 **Next:** `TASK-016 — Release polish, demo, and documentation (Day 49)`.

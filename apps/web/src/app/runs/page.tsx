@@ -15,12 +15,13 @@ export default function RunsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [modelFilter, setModelFilter] = useState<string>("");
 
   const loadRuns = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await listRuns(statusFilter || undefined);
+      const data = await listRuns(statusFilter || undefined, modelFilter || undefined);
       setRuns(data);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Failed to load run history";
@@ -28,7 +29,7 @@ export default function RunsPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, modelFilter]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -41,7 +42,7 @@ export default function RunsPage() {
         title="Run History"
         description="Inspect historical agent executions, request previews, terminal statuses, and tool metrics."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -52,6 +53,13 @@ export default function RunsPage() {
               <option value="failed">Failed</option>
               <option value="waiting_approval">Waiting Approval</option>
             </select>
+            <input
+              type="text"
+              placeholder="Filter by model label..."
+              value={modelFilter}
+              onChange={(e) => setModelFilter(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-border text-xs bg-surface text-primary focus:outline-hidden focus:ring-2 focus:ring-accent/20 focus:border-accent"
+            />
             <button
               onClick={() => loadRuns()}
               className="px-3 py-1.5 rounded-lg border border-border text-xs font-medium bg-surface text-primary hover:bg-slate-50 transition-colors"
@@ -69,12 +77,12 @@ export default function RunsPage() {
       ) : runs.length === 0 ? (
         <EmptyState
           title="No execution runs found"
-          description={statusFilter ? `No runs matching status '${statusFilter}'.` : "Submit a request in the assistant console to start your first run."}
+          description={statusFilter || modelFilter ? "No runs matching the selected filters." : "Submit a request in the assistant console to start your first run."}
         />
       ) : (
         <div className="bg-surface rounded-xl border border-border overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[650px]">
               <thead>
                 <tr className="border-b border-border bg-app/50 text-xs font-semibold text-secondary uppercase tracking-wider">
                   <th className="py-3 px-4">Run ID</th>
