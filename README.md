@@ -2,7 +2,7 @@
 
 > A production-minded operations assistant that uses a controlled tool-calling workflow to look up customer/order information, search knowledge, calculate values, and propose operational actions with human approval.
 
-**Status:** Fully implemented and verified (TASK-001 through TASK-015 complete: FastAPI backend, Next.js operator console, LangGraph workflow, allowlisted tools, approval lifecycle, Redis caching, run traces, and evaluation harness).
+**Status:** Fully implemented and verified (TASK-001 through TASK-016 complete: FastAPI backend, Next.js operator console, LangGraph workflow, allowlisted tools, approval lifecycle, Redis caching, run traces, and evaluation harness).
 
 ---
 
@@ -24,17 +24,17 @@ Operations teams frequently switch between customer records, order tracking, int
 
 ```mermaid
 flowchart TD
-    U[Operator] --> W[Next.js Operations Console]
-    W --> API[FastAPI API Backend]
-    API --> G[LangGraph Agent Workflow]
-    G --> M[Configurable Model Adapter (CraftX / OpenAI-compatible)]
-    G --> T[Allowlisted Tool Registry & Executor]
-    T --> DB[(PostgreSQL: operational data, runs, approvals)]
-    T --> DOC[Synthetic Document Corpus Search]
-    T --> C[Redis: eligible read cache]
-    G --> HITL[Human Approval Checkpoint / Pause]
+    U["Operator"] --> W["Next.js Operations Console"]
+    W --> API["FastAPI API Backend"]
+    API --> G["LangGraph Agent Workflow"]
+    G --> M["Configurable Model Adapter"]
+    G --> T["Allowlisted Tool Registry & Executor"]
+    T --> DB[("PostgreSQL: operational data, runs, approvals")]
+    T --> DOC["Synthetic Document Corpus Search"]
+    T --> C["Redis: eligible read cache"]
+    G --> HITL["Human Approval Checkpoint / Pause"]
     HITL --> W
-    G --> OBS[Structured Traces & Tool Events]
+    G --> OBS["Structured Traces & Tool Events"]
     OBS --> DB
 ```
 
