@@ -8,7 +8,7 @@ const navItems = [
   { name: "Assistant", href: "/assistant", icon: "💬" },
   { name: "Runs", href: "/runs", icon: "⚡" },
   { name: "Approvals", href: "/approvals", icon: "🛡️" },
-  { name: "Evaluations", href: "/evaluations", icon: "📊" },
+  { name: "Evaluations", href: "/evals", icon: "📊" },
   { name: "System Status", href: "/status", icon: "🟢" },
 ];
 

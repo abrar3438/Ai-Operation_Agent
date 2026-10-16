@@ -29,7 +29,7 @@ def planning_node(model: ModelAdapter, registry: Any) -> Any:
                     "message": f"Max steps {state.max_steps} reached",
                 },
             }
-        messages = [
+        messages: list[ModelMessage] = [
             ModelMessage(
                 role="system",
                 content=(
@@ -37,7 +37,9 @@ def planning_node(model: ModelAdapter, registry: Any) -> Any:
                     "allowlisted tool per turn using valid arguments, or answer directly. "
                     "If required information (such as customer IDs, order IDs, or specific query terms) "  # noqa: E501
                     "is missing, DO NOT guess or invent facts—ask a concise clarifying question instead. "  # noqa: E501
-                    "Never claim success after a tool failure or fallback."
+                    "Never claim success after a tool failure or fallback. "
+                    "You have already called the tools you need: answer from the tool "
+                    "observations above instead of calling the same tool again."
                 ),
             ),
             ModelMessage(
@@ -45,6 +47,16 @@ def planning_node(model: ModelAdapter, registry: Any) -> Any:
                 content=state.normalized_request or state.user_request,
             ),
         ]
+        for prior in state.messages:
+            role = prior.get("role")
+            if role not in ("assistant", "user", "tool"):
+                continue
+            content = prior.get("content")
+            if content is not None and not isinstance(content, str):
+                content = str(content)
+            if content is not None and len(content) > 2000:
+                content = content[:2000] + "...[truncated]"
+            messages.append(ModelMessage(role=role, content=content))
         tools = registry.get_tools_for_model()
         try:
             response = await model.chat(messages, tools=tools)
@@ -54,16 +66,47 @@ def planning_node(model: ModelAdapter, registry: Any) -> Any:
                 "error": {"category": "provider_error", "message": str(e)},
             }
         if response.tool_calls:
-            calls = [
-                {
-                    "id": tc.id,
-                    "name": tc.function.get("name"),
-                    "arguments": tc.function.get("arguments", {}),
-                    "fresh": True,
-                }
-                for tc in response.tool_calls
-            ]
-            return {"pending_tool_calls": calls}
+
+            def _canonical(raw: Any) -> str:
+                if isinstance(raw, str):
+                    try:
+                        raw = json.loads(raw)
+                    except json.JSONDecodeError:  # noqa: BLE001
+                        return str(raw)
+                return json.dumps(raw, sort_keys=True, default=str)
+
+            seen: set[tuple[str, str]] = set()
+            for prev in state.tool_results:
+                if prev.get("tool_name") == "search_documents":
+                    prev_query = (prev.get("result") or {}).get("query")
+                    if prev_query is not None:
+                        seen.add(("search_documents", _canonical({"query": prev_query})))
+            calls = []
+            for tc in response.tool_calls:
+                args = tc.function.get("arguments", {})
+                key = (tc.function.get("name", ""), _canonical(args))
+                if key in seen:
+                    continue
+                calls.append(
+                    {
+                        "id": tc.id,
+                        "name": tc.function.get("name"),
+                        "arguments": args,
+                        "fresh": True,
+                    }
+                )
+                seen.add(key)
+            if calls:
+                return {"pending_tool_calls": calls}
+            if response.content:
+                return {"final_answer": response.content, "pending_tool_calls": []}
+            return {
+                "pending_tool_calls": [],
+                "final_answer": (
+                    "Repeat tool call blocked: that exact call was already executed. "
+                    "Answer from the prior tool observations instead."
+                ),
+            }
         if response.content:
             return {"final_answer": response.content, "pending_tool_calls": []}
         return {
@@ -277,35 +320,81 @@ def final_response_node() -> Any:
         if state.terminal_status:
             return {}
 
-        # Safety safeguard: if tools were called and all failed, never allow a hallucinated success
+        # A repeat-call guard is a routing sentinel, not a user-facing answer:
+        # drop it so the run synthesizes from the tool observations instead.
+        model_answer = state.final_answer
+        if model_answer and model_answer.startswith("Repeat tool call blocked"):
+            model_answer = None
+
+        # Safety safeguard: if tools were called and all failed, surface the real
+        # underlying error category instead of masking it as a generic tool_failure.
         if state.tool_results and all(r.get("status") == "error" for r in state.tool_results):
             errors = [r.get("error") for r in state.tool_results if r.get("error")]
             err_str = "; ".join(str(e) for e in errors if e is not None)
+            first_category = next(
+                (r.get("error_category") for r in state.tool_results if r.get("error_category")),
+                "tool_failure",
+            )
             return {
                 "final_answer": f"Task could not be completed because tool execution failed: {err_str}",  # noqa: E501
                 "terminal_status": "failed",
                 "error": {
-                    "category": "tool_failure",
+                    "category": first_category,
                     "message": "All executed tool calls failed",
                 },
             }
 
-        # If a final answer was generated by the model (e.g. clarification or direct response) and no tools failed  # noqa: E501
-        if state.final_answer:
-            from app.agent.state import MAX_FINAL_ANSWER_CHARS, _truncate_text  # noqa: SLF001
-
-            return {
-                "final_answer": _truncate_text(state.final_answer, MAX_FINAL_ANSWER_CHARS),
-                "terminal_status": "succeeded",
-            }
-
-        # INVARIANT (TASK-005): never invent sources. If search_documents returned
-        # zero hits, surface the no-answer state instead of hallucinating.
         doc_hits: list[dict[str, Any]] = []
         for r in state.tool_results:
             if r.get("tool_name") == "search_documents" and r.get("result"):
                 doc_hits.extend(r["result"].get("results", []) or [])
         sources = [h["source_id"] for h in doc_hits]
+
+        if model_answer:
+            from app.agent.state import MAX_FINAL_ANSWER_CHARS, _truncate_text  # noqa: SLF001
+
+            lower = model_answer.lower()
+            hallucinated_no_docs = bool(doc_hits) and any(
+                p in lower
+                for p in (
+                    "no relevant documents",
+                    "wasn't able to locate",
+                    "was not able to locate",
+                    "unable to locate",
+                    "no documents found",
+                    "no internal documents",
+                    "could not find any documents",
+                    "no relevant documents in the corpus",
+                )
+            )
+            seen_ids: list[str] = list(dict.fromkeys(sources))
+            if not hallucinated_no_docs:
+                return {
+                    "final_answer": _truncate_text(model_answer, MAX_FINAL_ANSWER_CHARS),
+                    "terminal_status": "succeeded",
+                }
+            top: dict[str, Any] = next(
+                (
+                    r.get("result", {})
+                    for r in state.tool_results
+                    if r.get("tool_name") == "search_documents"
+                    and (r.get("result") or {}).get("results")
+                ),
+                {},
+            )
+            top_hits = (top.get("results", []) or [])[:3]
+            rendered = "; ".join(
+                f"{h.get('source_id')}: {h.get('title')} — {h.get('excerpt')}" for h in top_hits
+            )
+            corrected = (
+                f"Found {len(seen_ids)} document(s): {rendered} | Sources: {', '.join(seen_ids)}"
+                if seen_ids
+                else model_answer
+            )
+            return {
+                "final_answer": _truncate_text(corrected, MAX_FINAL_ANSWER_CHARS),
+                "terminal_status": "succeeded",
+            }
         # INVARIANT (TASK-006): an action proposal pauses the run. A final answer
         # must never claim the ticket/report was executed; it reports the pending
         # proposal and its identifiers.
@@ -323,12 +412,29 @@ def final_response_node() -> Any:
             }
         if state.tool_results and any(r.get("status") == "ok" for r in state.tool_results):
             ok = [r for r in state.tool_results if r.get("status") == "ok"]
-            if state.final_answer and not state.final_answer.startswith("Done. Results:"):
-                answer = state.final_answer
+            if model_answer and not model_answer.startswith("Done. Results:"):
+                answer = model_answer
             else:
                 if sources:
-                    joined = ", ".join(sources)
-                    answer = f"Done. Results: {ok[-1]['result']} | Sources: {joined}"
+                    distinct = list(dict.fromkeys(sources))
+                    joined = ", ".join(distinct)
+                    doc_ok = [
+                        r
+                        for r in ok
+                        if r.get("tool_name") == "search_documents"
+                        and (r.get("result") or {}).get("results")
+                    ]
+                    chosen = (doc_ok[-1] if doc_ok else ok[-1])["result"]
+                    hits = chosen.get("results", []) if isinstance(chosen, dict) else []
+                    rendered = "; ".join(
+                        f"{h.get('source_id')}: {h.get('title')} — {h.get('excerpt')}"
+                        for h in hits[:3]
+                    )
+                    answer = (
+                        f"Found {len(distinct)} document(s): {rendered} | Sources: {joined}"
+                        if rendered
+                        else f"Done. Results: {chosen} | Sources: {joined}"
+                    )
                 # Distinguish "no documents matched" from a successful doc search
                 elif any(
                     r.get("tool_name") == "search_documents"

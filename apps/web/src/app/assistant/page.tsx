@@ -35,6 +35,31 @@ export default function AssistantPage() {
 
   const isWaitingApproval = runDetails?.status === "waiting_approval" || runDetails?.approvals?.some((a) => a.status === "pending");
 
+  const docSourceIds = Array.from(
+    new Set(
+      (runDetails?.timeline ?? [])
+        .filter((t) => t.tool_name === "search_documents")
+        .flatMap((t) => {
+          const fromJson = (() => {
+            try {
+              const parsed = JSON.parse(t.detail_summary) as {
+                results?: Array<{ source_id?: string }>;
+              };
+              return (parsed.results ?? []).map((h) => h.source_id ?? "").filter(Boolean);
+            } catch {
+              return null;
+            }
+          })();
+          if (fromJson) return fromJson;
+          return t.detail_summary.match(/DOC-[A-Z0-9]+(?:-[A-Z0-9]+)*/g) ?? [];
+        })
+    )
+  );
+  const deniedDocs =
+    /no relevant documents|wasn.t able to locate|was not able to locate|unable to locate|no documents found|no internal documents|could not find any documents/i.test(
+      runDetails?.final_answer ?? ""
+    );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -129,11 +154,12 @@ export default function AssistantPage() {
                   {runDetails.final_answer || "No final answer produced."}
                 </div>
 
-                {/* Source references example */}
-                {runDetails.timeline.some((t) => t.tool_name === "search_documents") && (
+                {docSourceIds.length > 0 && !deniedDocs && (
                   <div className="pt-3 border-t border-border flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-medium text-secondary">Citations:</span>
-                    <SourceReference sourceId="DOC-REFUND-POLICY" />
+                    {docSourceIds.map((id) => (
+                      <SourceReference key={id} sourceId={id} />
+                    ))}
                   </div>
                 )}
               </div>

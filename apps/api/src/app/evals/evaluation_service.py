@@ -95,7 +95,7 @@ class EvaluationService:
         return report
 
     def _save_report_artifacts(self, report: dict[str, Any]) -> None:
-        reports_dir = os.path.abspath(
+        reports_dir = os.environ.get("EVAL_REPORTS_DIR") or os.path.abspath(
             os.path.join(
                 os.path.dirname(__file__),
                 "..",
@@ -106,7 +106,12 @@ class EvaluationService:
                 "reports",
             )
         )
-        os.makedirs(reports_dir, exist_ok=True)
+        try:
+            os.makedirs(reports_dir, exist_ok=True)
+        except OSError:
+            # Inside a read-only or non-writable image layout, still return the
+            # report to the caller instead of failing the whole evaluation.
+            return
 
         timestamp_slug = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         json_path = os.path.join(reports_dir, f"eval_report_{timestamp_slug}.json")

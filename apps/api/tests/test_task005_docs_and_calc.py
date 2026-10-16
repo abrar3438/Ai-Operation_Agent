@@ -285,6 +285,101 @@ def test_graph_search_documents_no_results_never_invents_sources() -> None:
         )  # placeholder; graph-level final answer reflects tool result
 
 
+def test_graph_hallucinated_no_docs_is_corrected_from_tool_results() -> None:
+    import asyncio
+
+    from app.agent.graph import build_graph
+    from app.agent.state import GraphState
+    from app.models.adapter import ModelResponse, ToolCall
+
+    factory = _seeded_factory()
+    registry, executor = _registry_exec(factory)
+    adapter = __import__("app.models.fake_adapter", fromlist=["FakeModelAdapter"]).FakeModelAdapter(
+        responses=[
+            ModelResponse(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id="d3",
+                        type="function",
+                        function={
+                            "name": "search_documents",
+                            "arguments": '{"query": "refund policy"}',
+                        },
+                    )
+                ],
+            ),
+            ModelResponse(
+                content="I wasn't able to locate any internal documents about a refund policy."
+            ),
+        ]
+    )
+    graph = build_graph(adapter, executor, registry)
+    state = GraphState(
+        run_id=uuid.uuid4(), thread_id=uuid.uuid4(), user_request="What is the refund policy?"
+    )
+    result = asyncio.run(graph.ainvoke(state.model_dump()))
+    assert result.get("terminal_status") == "succeeded"
+    final = result.get("final_answer") or ""
+    assert "DOC-REFUND-POLICY" in final
+    assert "wasn't able to locate" not in final
+    assert "Sources:" in final
+
+
+def test_graph_repeat_identical_search_call_is_not_redispatched() -> None:
+    import asyncio
+
+    from app.agent.graph import build_graph
+    from app.agent.state import GraphState
+    from app.models.adapter import ModelResponse, ToolCall
+
+    factory = _seeded_factory()
+    registry, executor = _registry_exec(factory)
+    adapter = __import__("app.models.fake_adapter", fromlist=["FakeModelAdapter"]).FakeModelAdapter(
+        responses=[
+            ModelResponse(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id="d4",
+                        type="function",
+                        function={
+                            "name": "search_documents",
+                            "arguments": '{"query": "refund policy"}',
+                        },
+                    )
+                ],
+            ),
+            ModelResponse(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id="d5",
+                        type="function",
+                        function={
+                            "name": "search_documents",
+                            "arguments": '{"query": "refund policy"}',
+                        },
+                    )
+                ],
+            ),
+        ]
+    )
+    graph = build_graph(adapter, executor, registry)
+    state = GraphState(
+        run_id=uuid.uuid4(), thread_id=uuid.uuid4(), user_request="What is the refund policy?"
+    )
+    result = asyncio.run(graph.ainvoke(state.model_dump()))
+    searches = [
+        r for r in result.get("tool_results", []) if r.get("tool_name") == "search_documents"
+    ]
+    assert len(searches) == 1, "identical repeat search must execute exactly once"
+    final = result.get("final_answer") or ""
+    assert result.get("terminal_status") == "succeeded"
+    assert "DOC-REFUND-POLICY" in final
+    assert "Repeat tool call blocked" not in final
+
+
 def test_graph_calculate_valid_arithmetic() -> None:
     import asyncio
 

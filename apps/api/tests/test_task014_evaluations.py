@@ -66,7 +66,8 @@ def eval_setup():
     return registry, executor
 
 
-def test_evaluation_service_runs_and_reports(eval_setup) -> None:
+def test_evaluation_service_runs_and_reports(eval_setup, tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("EVAL_REPORTS_DIR", str(tmp_path))
     registry, executor = eval_setup
 
     adapter = FakeModelAdapter(

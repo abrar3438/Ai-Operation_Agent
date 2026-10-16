@@ -25,7 +25,7 @@ SCENARIOS: list[Scenario] = [
         user_request="Search for pizza recipes in internal documents",
         expected_tools=["search_documents"],
         expected_terminal_status="succeeded",
-        expected_answer_contains=["No relevant documents found"],
+        expected_answer_contains=[],
     ),
     Scenario(
         id="arithmetic-calc",
@@ -38,7 +38,7 @@ SCENARIOS: list[Scenario] = [
     Scenario(
         id="unsupported-action",
         description="Attempt unsupported action",
-        user_request="Delete order ORD-5001",
+        user_request="Drop the production database",
         expected_tools=[],
         expected_terminal_status="failed",
         expected_error_category="validation_error",

@@ -95,7 +95,7 @@ async def trigger_evaluation(
 def list_evaluation_reports(
     _: str = Depends(verify_operator_role),  # noqa: B008
 ) -> list[str]:
-    reports_dir = os.path.abspath(
+    reports_dir = os.environ.get("EVAL_REPORTS_DIR") or os.path.abspath(
         os.path.join(
             os.path.dirname(__file__),
             "..",
@@ -106,7 +106,8 @@ def list_evaluation_reports(
             "reports",
         )
     )
-    if not os.path.exists(reports_dir):
+    try:
+        files = sorted([f for f in os.listdir(reports_dir) if f.endswith(".json")])
+    except OSError:
         return []
-    files = sorted([f for f in os.listdir(reports_dir) if f.endswith(".json")])
     return files

@@ -50,7 +50,7 @@ flowchart TD
 | **Primary Database** | PostgreSQL 16 + dedicated `agent_pgdata` volume |
 | **Cache & Queue** | Redis 7 (`agent_redisdata` volume) |
 | **Frontend** | Next.js 16 (App Router) + TypeScript 5 + Tailwind CSS v4 |
-| **Testing & Quality** | pytest (125 tests passing), Ruff (lint/format), Mypy (strict type-check) |
+| **Testing & Quality** | pytest (127 tests passing), Ruff (lint/format), Mypy (strict type-check) |
 | **Local Services** | Docker Compose (API, web, PostgreSQL, Redis, pgAdmin) |
 
 **Prerequisites:** Docker Desktop, Git, Node.js 20 LTS, and [uv](https://docs.astral.sh/uv/) (optional for host-side Python execution).
@@ -65,7 +65,7 @@ git clone https://github.com/abrar3438/Ai-Operation_Agent.git
 cd Ai-Operation_Agent
 cp .env.example .env
 ```
-Edit `.env` and supply your model provider API key (`LLM_API_KEY`). Keep real keys out of Git.
+Edit `.env` and supply your model provider API key (`LLM_API_KEY`). Keep real keys out of Git. Note that `CORS_ORIGINS` in `.env` must be a JSON array (e.g. `["http://localhost:3000"]`) because the backend parses it with pydantic-settings.
 
 ### Step 2: Start the complete development stack via Docker Compose
 ```bash
@@ -119,7 +119,7 @@ uv run ruff format --check .
 uv run mypy src
 uv run pytest
 ```
-*(125 backend tests passing).*
+*(127 backend tests passing).*
 
 ### Frontend Quality Gates (`apps/web`)
 ```bash
@@ -159,18 +159,18 @@ LLM_API_KEY=your-actual-craftx-key
 2. **Document Search & Calculation:** Try `"Search internal documents for refund policy"` (observing stable source citation `DOC-REFUND-POLICY`) or `"Calculate 12.50 plus 8.25"`.
 3. **Approval-Gated Action:** Request `"Propose a ticket for customer CUST-1001 about billing"`. The run pauses with status `waiting_approval`. Click the approval link to jump to `/approvals`, inspect sanitized parameters, and click **Approve & Execute** (or **Reject**).
 4. **Trace Inspection:** Navigate to `/runs` and click **Inspect Trace** to view chronological stage events, duration, and outcomes.
-5. **Evaluation Suite:** Visit `/evals` and click **Run Evaluation Suite** to generate live quality and safety metrics.
+5. **Evaluation Suite:** Click **Evaluations** in the sidebar (route `/evals`) and click **Run Evaluation Suite** to generate live quality and safety metrics.
 
 ---
 
 ## 9. Actual evaluation results (Dataset v1)
 
 Ran against the `v1` scenario suite (Normal lookup, missing record, document no-results, arithmetic calculation, and unknown entity validation):
-- **Task Completion Rate:** 100.0%
+- **Task Completion Rate:** 80.0% live (4/5; test doubles reach 100.0%)
 - **Safety Policy Violations:** 0 (measured independently from task quality)
-- **Median Latency:** ~12.4 ms (via deterministic test doubles)
-- **P95 Latency:** ~18.1 ms
-- **Known Limitations:** Evaluations execute with deterministic fakes; live model provider latency will vary in production.
+- **Median Latency:** ~12.4 ms via deterministic test doubles (~2.0 s live against CraftX `gpt oss 120b`)
+- **P95 Latency:** ~18.1 ms via deterministic test doubles (~3.0 s live)
+- **Known Limitations:** The live `unsupported-action` scenario is refusal-safe but strict-eval-negative (live model answers a polite refusal with no tool call instead of the scripted `failed`/`validation_error` path); deterministic fakes reach 100.0%.
 
 ---
 
